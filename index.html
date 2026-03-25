@@ -650,7 +650,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
       <div class="card"><div class="table-wrap"><table><thead><tr><th>Membro</th><th>Contato</th><th>Estado Civil</th><th>Batismo</th><th>Pastor</th><th style="text-align:center">Ações</th></tr></thead><tbody id="members-tbody"></tbody></table></div></div>
 
       <!-- PENDING SIGNATURES PANEL -->
-      <div id="sig-pending-panel" style="display:none;margin-top:24px">
+      <div id="sig-pending-panel" style="margin-top:24px">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
           <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700">✍️ Assinaturas Pendentes</div>
           <span class="nav-badge" id="sig-pending-count" style="background:#ef4444">0</span>
@@ -1675,16 +1675,44 @@ function openMemberModal(m=null){
   document.getElementById('member-modal-title').textContent=m?'Editar Membro':'Cadastrar Novo Membro';
   openModal('modal-member');
 }
-function saveMember(){
+async function saveMember(){
   const nome=document.getElementById('f-nome').value.trim();
   if(!nome){toast('Nome obrigatório!','error');return}
   if(!document.getElementById('f-lgpd-consent').checked){toast('É necessário confirmar o consentimento LGPD!','error');return}
   const db=getDB();
   const id=document.getElementById('f-id').value||uid();
-  const m={id,nome,nasc:document.getElementById('f-nasc').value,end:document.getElementById('f-end').value,tel:document.getElementById('f-tel').value,email:document.getElementById('f-email').value,fil:document.getElementById('f-fil').value,civil:document.getElementById('f-civil').value,conj:document.getElementById('f-conj').value,filhos:parseInt(document.getElementById('f-filhos').value)||0,batismo:document.getElementById('f-batismo').value,pr:document.getElementById('f-pr').value,outra:document.getElementById('f-outra').checked,qual:document.getElementById('f-qual').value,contatoIg:document.getElementById('f-contato-ig').value,lgpdConsent:true,lgpdConsentDate:new Date().toISOString()};
+  // Preserve existing cardStatus if editing, default to pending_signature for new
+  const existing = db.members.find(x=>x.id===id);
+  const m={
+    id, nome,
+    nasc:document.getElementById('f-nasc').value,
+    end:document.getElementById('f-end').value,
+    tel:document.getElementById('f-tel').value,
+    email:document.getElementById('f-email').value,
+    fil:document.getElementById('f-fil').value,
+    civil:document.getElementById('f-civil').value,
+    conj:document.getElementById('f-conj').value,
+    filhos:parseInt(document.getElementById('f-filhos').value)||0,
+    batismo:document.getElementById('f-batismo').value,
+    pr:document.getElementById('f-pr').value,
+    outra:document.getElementById('f-outra').checked,
+    qual:document.getElementById('f-qual').value,
+    contatoIg:document.getElementById('f-contato-ig').value,
+    lgpdConsent:true,
+    lgpdConsentDate:new Date().toISOString(),
+    foto: existing?.foto || null,
+    cardStatus: existing?.cardStatus || 'pending_signature',
+    signatureData: existing?.signatureData || null,
+    signedAt: existing?.signedAt || null,
+    registeredAt: existing?.registeredAt || new Date().toISOString(),
+  };
   const idx=db.members.findIndex(x=>x.id===id);
-  if(idx>=0)db.members[idx]=m;else db.members.push(m);
-  saveDB(db);closeModal('modal-member');renderMembers();updateBadges();
+  if(idx>=0)db.members[idx]=m; else db.members.push(m);
+  saveDB(db);
+  closeModal('modal-member');
+  // Save to Supabase
+  DB.upsertMember(m).then(()=>{ renderMembers(); updateBadges(); updateSigBadge(); }).catch(e=>console.warn('upsert:',e.message));
+  renderMembers(); updateBadges(); updateSigBadge();
   toast(idx>=0?'Membro atualizado!':'Membro cadastrado!','success');
 }
 function editMember(id){const db=getDB();const m=db.members.find(x=>x.id===id);if(m)openMemberModal(m)}
@@ -2886,7 +2914,8 @@ async function downloadCardPNG(memberId) {
 // ─── ADMIN: SIGNATURE PANEL ───────────────────────────────────────────────────
 function updateSigBadge() {
   const db = getDB();
-  const pending = (db.members||[]).filter(m => m.cardStatus === 'pending_signature');
+  const allMembers = db.members||[];
+  const pending = allMembers.filter(m => m.cardStatus === 'pending_signature');
   const count = pending.length;
   const badge = document.getElementById('nav-sig-badge');
   const panel = document.getElementById('sig-pending-panel');
@@ -2895,10 +2924,11 @@ function updateSigBadge() {
     badge.style.display = count > 0 ? 'inline-block' : 'none';
   }
   if (panel) {
-    panel.style.display = count > 0 ? '' : 'none';
+    // Always show panel if there are ANY members
+    panel.style.display = allMembers.length > 0 ? '' : 'none';
     const countEl = document.getElementById('sig-pending-count');
-    if (countEl) countEl.textContent = count;
-    renderSigPendingList(pending);
+    if (countEl) countEl.textContent = count + ' pendente' + (count !== 1 ? 's' : '');
+    renderSigPendingList(allMembers);
   }
 }
 
@@ -2907,34 +2937,47 @@ function scrollToPendingSig() {
   if (panel && panel.style.display !== 'none') panel.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-function renderSigPendingList(pending) {
+function renderSigPendingList(members) {
   const el = document.getElementById('sig-pending-list');
   if (!el) return;
-  if (!pending.length) {
-    el.innerHTML = '<p style="font-size:14px;color:var(--gray);padding:12px 0">Nenhuma carteirinha pendente.</p>';
+  if (!members.length) {
+    el.innerHTML = '<p style="font-size:14px;color:var(--gray);padding:12px 0">Nenhum membro cadastrado.</p>';
     return;
   }
-  el.innerHTML = pending.map(m => `
-    <div class="sig-pending-card" id="pending-card-${m.id}">
+  el.innerHTML = members.map(m => {
+    const approved = m.cardStatus === 'approved';
+    return `
+    <div class="sig-pending-card" id="pending-card-${m.id}" style="border-left:4px solid ${approved ? '#16a34a' : 'var(--orange)'}">
       ${m.foto
-        ? `<img src="${m.foto}" class="sig-pending-av" alt="${m.nome}">`
-        : `<div class="sig-pending-av-init" style="background:${avatarColor(m.nome)}">${initials(m.nome)}</div>`}
+        ? `<img src="${m.foto}" class="sig-pending-av" alt="${m.nome}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+        : `<div class="sig-pending-av-init" style="background:${avatarColor(m.nome)};width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:white;flex-shrink:0">${initials(m.nome)}</div>`}
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:14px">${m.nome}</div>
-        <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate((m.registeredAt||'').split('T')[0])} · ${m.tel||m.email||'—'}</div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${m.tel||m.email||'—'}</div>
+        <div style="font-size:11px;margin-top:4px">
+          ${approved
+            ? '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:20px;font-weight:600">✅ Carteirinha Liberada</span>'
+            : '<span style="background:#fff7ed;color:#ea580c;padding:2px 8px;border-radius:20px;font-weight:600">⏳ Aguardando Liberação</span>'}
+        </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-        <button id="btn-liberar-${m.id}"
-          onclick="liberarCarteirinha('${m.id}')"
-          style="background:#16a34a;color:white;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap;box-shadow:0 3px 10px rgba(22,163,74,.3)">
-          🔓 Liberar Carteirinha
-        </button>
-        <label style="background:var(--orange);color:white;border:none;border-radius:10px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;font-family:inherit">
-          📎 Anexar Assinatura PNG
-          <input type="file" accept="image/*" style="display:none" onchange="liberarComAssinatura('${m.id}',this)">
-        </label>
+        ${approved ? `
+          <button onclick="revogarCarteirinha('${m.id}')"
+            style="background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap">
+            🔒 Revogar
+          </button>` : `
+          <button id="btn-liberar-${m.id}"
+            onclick="liberarCarteirinha('${m.id}')"
+            style="background:#16a34a;color:white;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap;box-shadow:0 3px 10px rgba(22,163,74,.3)">
+            🔓 Liberar Carteirinha
+          </button>
+          <label style="background:var(--orange);color:white;border:none;border-radius:10px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;font-family:inherit">
+            📎 Anexar Assinatura PNG
+            <input type="file" accept="image/*" style="display:none" onchange="liberarComAssinatura('${m.id}',this)">
+          </label>`}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ─── SIGNATURE CANVAS ─────────────────────────────────────────────────────────
@@ -3110,6 +3153,21 @@ async function liberarCarteirinha(memberId) {
     toast('Erro ao liberar carteirinha: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '🔓 Liberar Carteirinha'; }
   }
+}
+
+async function revogarCarteirinha(memberId) {
+  if (!confirm('Revogar a carteirinha deste membro?')) return;
+  try {
+    await sbUpdate('members', memberId, { card_status: 'pending_signature', signature_data: null, signed_at: null });
+    const db = getDB();
+    [db.members, db.registeredMembers||[]].forEach(arr => {
+      const idx = arr.findIndex(m => m.id === memberId);
+      if (idx >= 0) { arr[idx].cardStatus = 'pending_signature'; arr[idx].signatureData = null; arr[idx].signedAt = null; }
+    });
+    saveDB(db);
+    renderMembers(); updateSigBadge();
+    toast('Carteirinha revogada.', 'info');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 // Upload PNG da assinatura do pastor e libera carteirinha
