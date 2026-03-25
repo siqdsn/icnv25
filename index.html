@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Igreja Cristã Nova Vida — Portal do Membro</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -28,14 +28,14 @@
 body{font-family:'DM Sans',sans-serif;background:var(--light);color:var(--black);min-height:100vh;display:flex;overflow-x:hidden}
 
 /* ─── SIDEBAR ─── */
-.sidebar{width:260px;min-height:100vh;background:var(--black);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:100;transition:transform .3s ease}
+.sidebar{width:260px;height:100vh;height:100dvh;min-height:100vh;background:var(--black);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:100;transition:transform .3s ease;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sidebar-logo{padding:28px 24px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
 .logo-cross{width:36px;height:36px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 4px 16px rgba(242,142,67,.4)}
 .logo-name{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:var(--white);line-height:1.2}
 .logo-sub{font-size:11px;color:var(--silver);font-weight:300;letter-spacing:.5px;margin-top:2px}
-.sidebar-nav{flex:1;padding:16px 0;overflow-y:auto}
+.sidebar-nav{flex:1;padding:16px 0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .nav-section{padding:8px 16px 4px;font-size:10px;font-weight:600;letter-spacing:1.2px;color:var(--gray);text-transform:uppercase}
-.nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;color:var(--silver);font-size:14px;font-weight:400;transition:all .2s;border-radius:8px;margin:2px 8px;position:relative;border:none;background:none;width:calc(100% - 16px);text-align:left}
+.nav-item{display:flex;align-items:center;touch-action:manipulation;gap:12px;padding:11px 20px;cursor:pointer;color:var(--silver);font-size:14px;font-weight:400;transition:all .2s;border-radius:8px;margin:2px 8px;position:relative;border:none;background:none;width:calc(100% - 16px);text-align:left}
 .nav-item:hover{background:rgba(255,255,255,.05);color:var(--white)}
 .nav-item.active{background:var(--orange-glow);color:var(--orange);font-weight:500}
 .nav-item.active::before{content:'';position:absolute;left:-8px;top:50%;transform:translateY(-50%);width:3px;height:20px;background:var(--orange);border-radius:0 2px 2px 0}
@@ -50,7 +50,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--light);color:var(--black)
 .topbar-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--black)}
 .topbar-actions{display:flex;gap:12px;align-items:center}
 
-.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;border:none;text-decoration:none}
+.btn{display:inline-flex;align-items:center;touch-action:manipulation;gap:8px;padding:9px 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;border:none;text-decoration:none}
 .btn-primary{background:var(--orange);color:white;box-shadow:0 4px 16px rgba(242,142,67,.3)}
 .btn-primary:hover{background:var(--orange-dark);transform:translateY(-1px);box-shadow:0 6px 20px rgba(242,142,67,.4)}
 .btn-ghost{background:transparent;color:var(--gray);border:1px solid rgba(0,0,0,.1)}
@@ -103,7 +103,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 @keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
 .modal-header{padding:24px 28px 20px;border-bottom:1px solid rgba(0,0,0,.06);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:white;z-index:10}
 .modal-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700}
-.modal-body{padding:24px 28px}
+.modal-body{}
 .modal-footer{padding:16px 28px 24px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid rgba(0,0,0,.06)}
 
 /* ─── FORM ─── */
@@ -111,7 +111,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 .form-full{grid-column:1/-1}
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:13px;font-weight:500;color:var(--dark)}
-.field input,.field select,.field textarea{padding:10px 14px;border:1px solid rgba(0,0,0,.12);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--black);background:white;transition:all .2s;outline:none}
+.field input,.field select,.field textarea{padding:10px 14px;border:1px solid rgba(0,0,0,.12);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:16px;color:var(--black);background:white;transition:all .2s;outline:none}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
 .field textarea{resize:vertical;min-height:90px}
 .section-title{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:var(--black);padding-bottom:10px;border-bottom:2px solid var(--orange);display:inline-block;margin-bottom:16px}
@@ -336,7 +336,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 .login-sub{font-size:14px;color:rgba(255,255,255,.4);margin-bottom:32px}
 .login-field{text-align:left;margin-bottom:16px}
 .login-field label{display:block;font-size:12px;font-weight:600;color:rgba(255,255,255,.5);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
-.login-field input{width:100%;padding:12px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;color:white;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:all .2s}
+.login-field input{width:100%;padding:12px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;color:white;font-family:'DM Sans',sans-serif;font-size:16px;outline:none;transition:all .2s}
 .login-field input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(242,142,67,.15)}
 .login-btn{width:100%;padding:13px;background:var(--orange);color:white;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:8px}
 .login-btn:hover{background:var(--orange-dark);transform:translateY(-1px)}
@@ -537,6 +537,11 @@ label, .td-meta, .badge, .prayer-date, .td-name { font-size: inherit !important;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 150;
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   .sidebar.mob-open, .sidebar.open {
     transform: translateX(0);
@@ -2268,10 +2273,6 @@ function buildMemberCard(m, forPrint = false) {
     ? `<img src="${m.foto}" style="width:76px;height:76px;border-radius:50%;object-fit:cover;border:3px solid #f28e43;flex-shrink:0">`
     : `<div style="width:76px;height:76px;border-radius:50%;background:${avatarColor(m.nome)};border:3px solid #f28e43;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:white;flex-shrink:0">${initials(m.nome)}</div>`;
 
-  const hasSig = !!m.signatureData;
-  const sigBox = hasSig
-    ? `<img src="${m.signatureData}" style="width:100%;height:54px;object-fit:contain;display:block">`
-    : `<div style="width:100%;height:54px;border:1.5px dashed #ccc;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa"><span style="font-size:9px;color:#bbb;letter-spacing:.5px">Aguardando autorização</span></div>`;
 
   return `
   <div style="max-width:440px;margin:0 auto;font-family:'DM Sans',sans-serif" id="${cardId}">
@@ -2321,17 +2322,10 @@ function buildMemberCard(m, forPrint = false) {
           <div style="font-size:11px;color:#374151">${m.fil||'—'}</div>
         </div>
 
-        <!-- PASTOR + SIGNATURE -->
-        <div style="display:flex;align-items:flex-start;gap:14px">
-          <div style="flex:1">
-            <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Pastor Responsável</div>
-            <div style="font-size:13px;color:#111;font-weight:700">${m.pr||'Pr. Antonio Carlos'}</div>
-            <div style="font-size:8px;color:#d1d5db;margin-top:4px;line-height:1.4">Sob o episcopado do<br>Bp. Primaz Walter Robert Macalister Jr.</div>
-          </div>
-          <div style="width:160px;flex-shrink:0">
-            <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;text-align:center">Assinatura</div>
-            ${sigBox}
-          </div>
+        <!-- PASTOR -->
+        <div>
+          <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Pastor Responsável</div>
+          <div style="font-size:13px;color:#111;font-weight:700">${m.pr||'Pr. Antonio Carlos'}</div>
         </div>
       </div>
 
@@ -2339,7 +2333,7 @@ function buildMemberCard(m, forPrint = false) {
       <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:8px 18px;display:flex;align-items:center;justify-content:space-between">
         <div style="font-size:8px;color:#9ca3af;line-height:1.6">
           Rua Sebastião de Carvalho, nº 97 — Jd. 25 de Agosto · Tel. (21) 3652-6266<br>
-          CNPJ 00.645.484/0001-26
+          CNPJ 00.645.484/0001-26 · Bp. Primaz Walter Robert Macalister Jr.
         </div>
         <div style="text-align:right">
           <div style="font-size:8px;color:#9ca3af">Válido</div>
@@ -2892,19 +2886,7 @@ function renderPortalCard() {
       </div>`;
     displayEl.innerHTML = buildMemberCard(m);
     // Add back side with signature
-    if (m.signatureData) {
-      displayEl.innerHTML += `
-      <div class="card-print-wrap" style="margin-top:8px">
-        <div class="card-back">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.3);margin-bottom:12px">Verso — Assinatura do Bispo Presidente</div>
-          <img src="${m.signatureData}" class="sig-image-display" alt="Assinatura">
-          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)">
-            <div style="font-size:11px;color:rgba(255,255,255,.5)">Bp. Primaz Walter Robert Macalister Jr.</div>
-            <div style="font-size:10px;color:rgba(255,255,255,.3)">Igreja Cristã Nova Vida — CNPJ 00.645.484/0001-26</div>
-          </div>
-        </div>
-      </div>`;
-    }
+
     setTimeout(() => {
       const qrEl = displayEl.querySelector('[id^="qr-modal-"]');
       if (qrEl && typeof QRCode !== 'undefined') {
@@ -2991,17 +2973,6 @@ async function downloadCardPNG(memberId) {
     const renderArea = document.getElementById('card-render-area');
     renderArea.innerHTML = buildMemberCard(m);
     if (m.signatureData) {
-      renderArea.innerHTML += `
-        <div class="card-print-wrap" style="margin-top:8px">
-          <div class="card-back">
-            <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.3);margin-bottom:12px">Assinatura do Bispo Presidente</div>
-            <img src="${m.signatureData}" class="sig-image-display" alt="Assinatura">
-            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)">
-              <div style="font-size:11px;color:rgba(255,255,255,.5)">Bp. Primaz Walter Robert Macalister Jr.</div>
-              <div style="font-size:10px;color:rgba(255,255,255,.3)">Igreja Cristã Nova Vida — CNPJ 00.645.484/0001-26</div>
-            </div>
-          </div>
-        </div>`;
     }
     // QR
     await new Promise(res => {
