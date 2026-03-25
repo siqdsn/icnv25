@@ -1242,15 +1242,18 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // Simple REST helper — no SDK, no Web Workers, no cloning issues
 async function sbFetch(method, table, body=null, filters='') {
   const url = SUPA_URL + '/rest/v1/' + table + (filters ? '?' + filters : '');
-  const opts = {
-    method,
-    headers: {
-      'apikey': SUPA_KEY,
-      'Authorization': 'Bearer ' + SUPA_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
+  const headers = {
+    'apikey': SUPA_KEY,
+    'Authorization': 'Bearer ' + SUPA_KEY,
+    'Accept': 'application/json',
   };
+  // Only add write headers for non-GET requests to avoid CORS preflight
+  if (method !== 'GET') {
+    headers['Content-Type'] = 'application/json';
+    if (method === 'POST') headers['Prefer'] = 'resolution=merge-duplicates,return=minimal';
+    if (method === 'PATCH') headers['Prefer'] = 'return=minimal';
+  }
+  const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   if (!res.ok) {
@@ -1345,7 +1348,7 @@ const DB = {
       const cols = 'id,nome,nasc,tel,email,end_logradouro,civil,filhos,conj,fil,batismo,pr,outra,qual,login_user,login_pass,lgpd_consent,card_status,signature_data,signed_at,registered_at,created_at';
       const data = await sbFetch('GET','members',null,'select='+cols+'&order=created_at.desc');
       return data||[];
-    } catch(e) { console.error('getMembers:', e.message); return getCache().members||[]; }
+    } catch(e) { console.error('Membros - erro ao buscar:', e.message); return getCache().members||[]; }
   },
 
   // Fetch fotos in background after list loads — one batch request
@@ -1363,11 +1366,14 @@ const DB = {
       if (changed) {
         db.registeredMembers = db.members.filter(m => m.loginUser);
         setCache(db);
-        // Re-render if on members page
-        if (currentPage === 'members') renderMembers();
-        updateSigBadge();
+        if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
+        // Update portal card if member is viewing their own card
+        if (typeof renderPortalCard === 'function' && portalMember) {
+          const updated = db.members.find(x => x.id === portalMember.id);
+          if (updated && updated.foto) renderPortalCard();
+        }
       }
-    } catch(e) { console.warn('fetchAllFotos:', e.message); }
+    } catch(e) { console.warn('Fotos - erro ao buscar:', e.message); }
   },
 
   // Fetch single member foto
@@ -1394,11 +1400,11 @@ const DB = {
       };
       await sbUpsert('members', row);
       await DB.syncCacheMembers();
-    } catch(e) { console.error('upsertMember:', e.message); }
+    } catch(e) { console.error('Membro - erro ao salvar:', e.message); }
   },
   async deleteMember(id) {
     try { await sbDelete('members', id); await DB.syncCacheMembers(); }
-    catch(e) { console.error('deleteMember:', e.message); }
+    catch(e) { console.error('Membro - erro ao excluir:', e.message); }
   },
   async updateMemberCard(id, cardStatus, signatureData, signedAt) {
     try {
@@ -1434,7 +1440,7 @@ const DB = {
     try {
       const data = await sbSelect('events', 'order=data.asc');
       return data||[];
-    } catch(e) { console.error('getEvents:', e.message); return getCache().events||[]; }
+    } catch(e) { console.error('Eventos - erro ao buscar:', e.message); return getCache().events||[]; }
   },
   async upsertEvent(e) {
     try {
@@ -1444,7 +1450,7 @@ const DB = {
   },
   async deleteEvent(id) {
     try { await sbDelete('events', id); await DB.syncCacheEvents(); }
-    catch(e) { console.error('deleteEvent:', e.message); }
+    catch(e) { console.error('Evento - erro ao excluir:', e.message); }
   },
   async syncCacheEvents() {
     const rows = await DB.getEvents();
@@ -1458,17 +1464,17 @@ const DB = {
     try {
       const data = await sbSelect('prayers', 'order=created_at.desc');
       return data||[];
-    } catch(e) { console.error('getPrayers:', e.message); return getCache().prayers||[]; }
+    } catch(e) { console.error('Orações - erro ao buscar:', e.message); return getCache().prayers||[]; }
   },
   async insertPrayer(p) {
     try {
       await sbUpsert('prayers', {id:p.id, nome:p.nome, texto:p.texto, anonimo:p.anonimo||false, author_id:p.authorId||null, data:p.data});
       await DB.syncCachePrayers();
-    } catch(e) { console.error('insertPrayer:', e.message); }
+    } catch(e) { console.error('Oração - erro ao salvar:', e.message); }
   },
   async deletePrayer(id) {
     try { await sbDelete('prayers', id); await DB.syncCachePrayers(); }
-    catch(e) { console.error('deletePrayer:', e.message); }
+    catch(e) { console.error('Oração - erro ao excluir:', e.message); }
   },
   async syncCachePrayers() {
     const rows = await DB.getPrayers();
@@ -1482,17 +1488,17 @@ const DB = {
     try {
       const data = await sbSelect('scales', 'order=data.asc');
       return data||[];
-    } catch(e) { console.error('getScales:', e.message); return getCache().scales||[]; }
+    } catch(e) { console.error('Escalas - erro ao buscar:', e.message); return getCache().scales||[]; }
   },
   async upsertScale(s) {
     try {
       await sbUpsert('scales', {id:s.id, titulo:s.titulo, data:s.data, hora:s.hora, tema:s.tema||null, culto_type:s.cultoType||null, musicians:s.musicians||[]});
       await DB.syncCacheScales();
-    } catch(e) { console.error('upsertScale:', e.message); }
+    } catch(e) { console.error('Escala - erro ao salvar:', e.message); }
   },
   async deleteScale(id) {
     try { await sbDelete('scales', id); await DB.syncCacheScales(); }
-    catch(e) { console.error('deleteScale:', e.message); }
+    catch(e) { console.error('Escala - erro ao excluir:', e.message); }
   },
   async syncCacheScales() {
     const rows = await DB.getScales();
@@ -1513,7 +1519,7 @@ const DB = {
       ]);
       console.log('✓ Supabase sync complete');
     } catch(e) {
-      console.error('syncAll error:', e.message);
+      console.error('Erro de sincronização:', e.message);
     } finally {
       hideLoadingOverlay();
     }
@@ -1933,7 +1939,7 @@ async function openPublicPage(){
       }));
       setCache(cache);
     }
-  } catch(e) { console.warn('scales fetch:', e.message); }
+  } catch(e) { console.warn('Escalas - erro ao buscar:', e.message); }
   renderPublicPage();
 }
 function closePublicPage(){
@@ -2090,6 +2096,8 @@ async function loginSuccess(username, user) {
   renderPage('dashboard');
   updateBadges();
   updateSigBadge();
+  // Load fotos in background
+  DB.fetchAllFotos();
 }
 
 function logout() {
@@ -2209,7 +2217,6 @@ function buildMemberCard(m, forPrint = false) {
           <div style="flex:1">
             <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Pastor Responsável</div>
             <div style="font-size:13px;color:#111;font-weight:700">${m.pr||'Pr. Antonio Carlos'}</div>
-            <div style="font-size:8px;color:#d1d5db;margin-top:4px;line-height:1.4">Sob o episcopado do<br>Bp. Primaz Walter Robert Macalister Jr.</div>
           </div>
           <div style="width:160px;flex-shrink:0">
             <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;text-align:center">Assinatura</div>
@@ -2722,6 +2729,7 @@ function switchPortalTab(tab, el) {
 
 function renderPortalCard() {
   if (!portalMember) return;
+
   const statusEl = document.getElementById('portal-card-status');
   const displayEl = document.getElementById('portal-card-display');
   const m = getDB().members.find(x => x.id === portalMember.id) || portalMember;
@@ -2757,20 +2765,7 @@ function renderPortalCard() {
         </div>
       </div>`;
     displayEl.innerHTML = buildMemberCard(m);
-    // Add back side with signature
-    if (m.signatureData) {
-      displayEl.innerHTML += `
-      <div class="card-print-wrap" style="margin-top:8px">
-        <div class="card-back">
-          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.3);margin-bottom:12px">Verso — Assinatura do Bispo Presidente</div>
-          <img src="${m.signatureData}" class="sig-image-display" alt="Assinatura">
-          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)">
-            <div style="font-size:11px;color:rgba(255,255,255,.5)">Bp. Primaz Walter Robert Macalister Jr.</div>
-            <div style="font-size:10px;color:rgba(255,255,255,.3)">Igreja Cristã Nova Vida — CNPJ 00.645.484/0001-26</div>
-          </div>
-        </div>
-      </div>`;
-    }
+
     setTimeout(() => {
       const qrEl = displayEl.querySelector('[id^="qr-modal-"]');
       if (qrEl && typeof QRCode !== 'undefined') {
