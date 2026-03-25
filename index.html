@@ -1538,23 +1538,20 @@ const DB = {
 
   // ── MEMBERS ──
   async getMembers() {
+    // Excludes foto from listing — large base64 causes mobile timeouts
+    // Use getMemberFoto(id) to fetch foto individually when needed
     try {
-      // Full fetch including foto — uses AbortController to timeout on slow connections
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000); // 15s timeout
-      const url = SUPA_URL + '/rest/v1/members?order=created_at.desc';
-      const res = await fetch(url, {
-        signal: ctrl.signal,
-        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY, 'Accept': 'application/json' }
-      });
-      clearTimeout(timer);
-      if (!res.ok) throw new Error('members '+res.status);
-      const data = await res.json();
+      const cols = 'id,nome,nasc,tel,email,end_logradouro,civil,filhos,conj,fil,batismo,pr,outra,qual,login_user,login_pass,lgpd_consent,card_status,signature_data,signed_at,registered_at,created_at';
+      const data = await sbFetch('GET','members',null,'select='+cols+'&order=created_at.desc');
       return data||[];
-    } catch(e) {
-      console.error('getMembers:', e.message);
-      return getCache().members||[];
-    }
+    } catch(e) { console.error('getMembers:', e.message); return getCache().members||[]; }
+  },
+
+  async getMemberFoto(memberId) {
+    try {
+      const rows = await sbFetch('GET','members',null,'select=id,foto&id=eq.'+memberId);
+      return (rows && rows[0]) ? rows[0].foto : null;
+    } catch(e) { console.warn('getMemberFoto:', e.message); return null; }
   },
   async upsertMember(m) {
     try {
@@ -1588,11 +1585,14 @@ const DB = {
   async syncCacheMembers() {
     const rows = await DB.getMembers();
     const cache = getCache();
+    const existing = {}; // preserve cached fotos
+    (cache.members||[]).forEach(m => { if(m.foto) existing[m.id] = m.foto; });
     cache.members = rows.map(r => ({
       id:r.id, nome:r.nome, nasc:r.nasc, tel:r.tel, email:r.email,
       end:r.end_logradouro, civil:r.civil, filhos:r.filhos,
       conj:r.conj, fil:r.fil, batismo:r.batismo,
-      foto:r.foto, pr:r.pr, outra:r.outra, qual:r.qual,
+      foto: existing[r.id] || null,  // keep cached foto if available
+      pr:r.pr, outra:r.outra, qual:r.qual,
       loginUser:r.login_user, loginPass:r.login_pass,
       lgpdConsent:r.lgpd_consent, cardStatus:r.card_status,
       signatureData:r.signature_data, signedAt:r.signed_at,
@@ -1859,8 +1859,17 @@ function saveMember(){
 }
 function editMember(id){const db=getDB();const m=db.members.find(x=>x.id===id);if(m)openMemberModal(m)}
 function deleteMember(id){if(!confirm('Excluir membro?'))return;const db=getDB();db.members=db.members.filter(x=>x.id!==id);saveDB(db);DB.deleteMember(id);renderMembers();updateBadges();toast('Membro excluído.','info')}
-function viewMember(id){
-  const db=getDB();const m=db.members.find(x=>x.id===id);if(!m)return;
+async function viewMember(id){
+  const db=getDB(); let m=db.members.find(x=>x.id===id); if(!m)return;
+  // Buscar foto se não estiver no cache
+  if (!m.foto) {
+    const foto = await DB.getMemberFoto(id);
+    if (foto) {
+      m.foto = foto;
+      const mi = db.members.findIndex(x=>x.id===id);
+      if(mi>=0){db.members[mi].foto=foto; saveDB(db);}
+    }
+  }
   const body=document.getElementById('detail-body');
   // Show/hide Liberar button
   setTimeout(() => {
@@ -2880,11 +2889,21 @@ function switchPortalTab(tab, el) {
   if (tab === 'oracao') renderPortalPrayers();
 }
 
-function renderPortalCard() {
+async function renderPortalCard() {
   if (!portalMember) return;
   const statusEl = document.getElementById('portal-card-status');
   const displayEl = document.getElementById('portal-card-display');
-  const m = getDB().members.find(x => x.id === portalMember.id) || portalMember;
+  const db2 = getDB();
+  let m = db2.members.find(x => x.id === portalMember.id) || portalMember;
+  // Buscar foto se não estiver no cache
+  if (!m.foto) {
+    const foto = await DB.getMemberFoto(m.id);
+    if (foto) {
+      m = {...m, foto};
+      const mi = db2.members.findIndex(x=>x.id===m.id);
+      if(mi>=0){db2.members[mi].foto=foto; saveDB(db2);}
+    }
+  }
 
   if (m.cardStatus === 'pending_signature') {
     statusEl.innerHTML = `
@@ -3002,7 +3021,16 @@ async function downloadCardPNG(memberId) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando PNG...'; }
 
   try {
-
+    // Fetch foto se não estiver no cache (excluída do listing para reduzir payload)
+    if (!m.foto) {
+      const foto = await DB.getMemberFoto(m.id);
+      if (foto) {
+        m.foto = foto;
+        const db2 = getDB();
+        const mi = db2.members.findIndex(x => x.id === m.id);
+        if (mi >= 0) { db2.members[mi].foto = foto; saveDB(db2); }
+      }
+    }
     const renderArea = document.getElementById('card-render-area');
     renderArea.innerHTML = buildMemberCard(m);
     // QR
@@ -3457,6 +3485,10 @@ async function doExportCard(m, format) {
   }
   toast('⏳ Gerando arquivo...', 'info');
   try {
+    if (!m.foto) {
+      const foto = await DB.getMemberFoto(m.id);
+      if (foto) { m.foto = foto; }
+    }
     const renderArea = document.getElementById('card-render-area');
     renderArea.style.width = '440px';
     renderArea.innerHTML = buildMemberCard(m);
