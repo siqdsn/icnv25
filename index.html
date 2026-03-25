@@ -1539,7 +1539,8 @@ const DB = {
   // ── MEMBERS ──
   async getMembers() {
     try {
-      const data = await sbSelect('members', 'order=created_at.desc');
+      const cols = 'id,nome,nasc,tel,email,end_logradouro,civil,filhos,conj,fil,batismo,pr,outra,qual,login_user,login_pass,lgpd_consent,card_status,signature_data,signed_at,registered_at,created_at';
+      const data = await sbSelect('members', 'select='+cols+'&order=created_at.desc');
       return data||[];
     } catch(e) { console.error('getMembers:', e.message); return getCache().members||[]; }
   },
@@ -2989,10 +2990,19 @@ async function downloadCardPNG(memberId) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando PNG...'; }
 
   try {
+    // Fetch foto if excluded from listing (large base64)
+    if (!m.foto) {
+      try {
+        const rows = await sbSelect('members', 'select=id,foto&id=eq.'+m.id);
+        if (rows && rows[0] && rows[0].foto) {
+          m.foto = rows[0].foto;
+          const db=getDB(); const idx=db.members.findIndex(x=>x.id===m.id);
+          if(idx>=0){db.members[idx].foto=m.foto; saveDB(db);}
+        }
+      } catch(e){ console.warn('foto fetch:', e.message); }
+    }
     const renderArea = document.getElementById('card-render-area');
     renderArea.innerHTML = buildMemberCard(m);
-    if (m.signatureData) {
-    }
     // QR
     await new Promise(res => {
       const qrEl = renderArea.querySelector('[id^="qr-modal-"]');
