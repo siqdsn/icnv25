@@ -1617,7 +1617,7 @@ function openAddModal(){
 }
 function renderPage(n){
   if(n==='dashboard')renderDashboard();
-  else if(n==='members')renderMembers();
+  else if(n==='members'){ renderMembers(); updateSigBadge(); }
   else if(n==='birthdays')renderBirthdays();
   else if(n==='prayers')renderPrayers();
   else if(n==='events')renderEvents();
@@ -2089,6 +2089,7 @@ async function loginSuccess(username, user) {
   hideLoadingOverlay();
   renderPage('dashboard');
   updateBadges();
+  updateSigBadge();
 }
 
 function logout() {
