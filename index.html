@@ -35,12 +35,18 @@
 body{font-family:'DM Sans',sans-serif;background:var(--light);color:var(--black);min-height:100vh;display:flex;overflow-x:hidden}
 
 /* ─── SIDEBAR ─── */
-.sidebar{width:260px;min-height:100vh;background:var(--black);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:100;transition:transform .3s ease}
+.sidebar{width:260px;height:100vh;height:100dvh;background:var(--black);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:100;transition:transform .3s ease;overflow:hidden}
 .sidebar-logo{padding:28px 24px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
 .logo-cross{width:36px;height:36px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 4px 16px rgba(242,142,67,.4)}
 .logo-name{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:var(--white);line-height:1.2}
 .logo-sub{font-size:11px;color:var(--silver);font-weight:300;letter-spacing:.5px;margin-top:2px}
-.sidebar-nav{flex:1;padding:16px 0;overflow-y:auto}
+.sidebar-nav{flex:1;padding:16px 0;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:rgba(242,142,67,.35) transparent;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.sidebar-nav::-webkit-scrollbar{width:4px}
+.sidebar-nav::-webkit-scrollbar-track{background:transparent}
+.sidebar-nav::-webkit-scrollbar-thumb{background:rgba(242,142,67,.35);border-radius:4px}
+.sidebar-nav::-webkit-scrollbar-thumb:hover{background:rgba(242,142,67,.6)}
 .nav-section{padding:8px 16px 4px;font-size:10px;font-weight:600;letter-spacing:1.2px;color:var(--gray);text-transform:uppercase}
 .nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;cursor:pointer;color:var(--silver);font-size:14px;font-weight:400;transition:all .2s;border-radius:8px;margin:2px 8px;position:relative;border:none;background:none;width:calc(100% - 16px);text-align:left}
 .nav-item:hover{background:rgba(255,255,255,.05);color:var(--white)}
@@ -1334,10 +1340,42 @@ const DB = {
 
   // ── MEMBERS ──
   async getMembers() {
+    // Excludes foto — keeps payload small so mobile never times out
     try {
-      const data = await sbSelect('members', 'order=created_at.desc');
+      const cols = 'id,nome,nasc,tel,email,end_logradouro,civil,filhos,conj,fil,batismo,pr,outra,qual,login_user,login_pass,lgpd_consent,card_status,signature_data,signed_at,registered_at,created_at';
+      const data = await sbFetch('GET','members',null,'select='+cols+'&order=created_at.desc');
       return data||[];
     } catch(e) { console.error('getMembers:', e.message); return getCache().members||[]; }
+  },
+
+  // Fetch fotos in background after list loads — one batch request
+  async fetchAllFotos() {
+    try {
+      const rows = await sbFetch('GET','members',null,'select=id,foto&order=created_at.desc');
+      if (!rows||!rows.length) return;
+      const db = getCache();
+      let changed = false;
+      rows.forEach(r => {
+        if (!r.foto) return;
+        const m = db.members.find(x => x.id === r.id);
+        if (m && m.foto !== r.foto) { m.foto = r.foto; changed = true; }
+      });
+      if (changed) {
+        db.registeredMembers = db.members.filter(m => m.loginUser);
+        setCache(db);
+        // Re-render if on members page
+        if (currentPage === 'members') renderMembers();
+        updateSigBadge();
+      }
+    } catch(e) { console.warn('fetchAllFotos:', e.message); }
+  },
+
+  // Fetch single member foto
+  async getMemberFoto(memberId) {
+    try {
+      const rows = await sbFetch('GET','members',null,'select=id,foto&id=eq.'+memberId);
+      return (rows&&rows[0]) ? rows[0].foto : null;
+    } catch(e) { return null; }
   },
   async upsertMember(m) {
     try {
@@ -1371,11 +1409,15 @@ const DB = {
   async syncCacheMembers() {
     const rows = await DB.getMembers();
     const cache = getCache();
+    // Preserve cached fotos — they're fetched separately
+    const cachedFotos = {};
+    (cache.members||[]).forEach(m => { if(m.foto) cachedFotos[m.id] = m.foto; });
     cache.members = rows.map(r => ({
       id:r.id, nome:r.nome, nasc:r.nasc, tel:r.tel, email:r.email,
       end:r.end_logradouro, civil:r.civil, filhos:r.filhos,
       conj:r.conj, fil:r.fil, batismo:r.batismo,
-      foto:r.foto, pr:r.pr, outra:r.outra, qual:r.qual,
+      foto: cachedFotos[r.id] || null,
+      pr:r.pr, outra:r.outra, qual:r.qual,
       loginUser:r.login_user, loginPass:r.login_pass,
       lgpdConsent:r.lgpd_consent, cardStatus:r.card_status,
       signatureData:r.signature_data, signedAt:r.signed_at,
@@ -1383,6 +1425,8 @@ const DB = {
     }));
     cache.registeredMembers = cache.members.filter(m => m.loginUser);
     setCache(cache);
+    // Fetch fotos in background (small individual requests)
+    DB.fetchAllFotos();
   },
 
   // ── EVENTS ──
@@ -1845,9 +1889,24 @@ function copyShareLink(){
   const input=document.getElementById('share-link-input');
   navigator.clipboard.writeText(input.value).then(()=>toast('Link copiado! ✓','success')).catch(()=>{input.select();document.execCommand('copy');toast('Link copiado!','success')});
 }
-function openPublicPage(){
-  renderPublicPage();
+async function openPublicPage(){
   document.getElementById('public-musician-page').style.display='block';
+  const el = document.getElementById('public-scales-list');
+  if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)">⏳ Carregando escalas...</div>';
+  try {
+    const rows = await sbFetch('GET','scales',null,'order=data.asc');
+    if (rows && rows.length) {
+      const cache = getCache();
+      cache.scales = rows.map(r => ({
+        id:r.id, titulo:r.titulo, data:r.data, hora:r.hora,
+        tema:r.tema, cultoType:r.culto_type,
+        musicians: Array.isArray(r.musicians) ? r.musicians :
+                   (r.musicians ? JSON.parse(r.musicians) : [])
+      }));
+      setCache(cache);
+    }
+  } catch(e) { console.warn('scales fetch:', e.message); }
+  renderPublicPage();
 }
 function closePublicPage(){
   document.getElementById('public-musician-page').style.display='none';
@@ -2766,6 +2825,15 @@ async function downloadCardPNG(memberId) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando PNG...'; }
 
   try {
+    // Fetch foto if not in cache yet (loaded separately from listing)
+    if (!m.foto) {
+      const f = await DB.getMemberFoto(m.id);
+      if (f) {
+        m.foto = f;
+        const db2=getDB(); const mi=db2.members.findIndex(x=>x.id===m.id);
+        if(mi>=0){db2.members[mi].foto=f; saveDB(db2);}
+      }
+    }
     const renderArea = document.getElementById('card-render-area');
     renderArea.innerHTML = buildMemberCard(m);
     if (m.signatureData) {
@@ -2818,7 +2886,7 @@ async function downloadCardPNG(memberId) {
 // ─── ADMIN: SIGNATURE PANEL ───────────────────────────────────────────────────
 function updateSigBadge() {
   const db = getDB();
-  const pending = (db.members||[]).filter(m => m.cardStatus === 'pending_signature' && m.foto);
+  const pending = (db.members||[]).filter(m => m.cardStatus === 'pending_signature');
   const count = pending.length;
   const badge = document.getElementById('nav-sig-badge');
   const panel = document.getElementById('sig-pending-panel');
@@ -3235,6 +3303,10 @@ async function doExportCard(m, format) {
   }
   toast('⏳ Gerando arquivo...', 'info');
   try {
+    if (!m.foto) {
+      const f = await DB.getMemberFoto(m.id);
+      if (f) { m.foto = f; }
+    }
     const renderArea = document.getElementById('card-render-area');
     renderArea.style.width = '440px';
     renderArea.innerHTML = buildMemberCard(m);
