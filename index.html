@@ -2048,9 +2048,27 @@ function copyShareLink(){
   const input=document.getElementById('share-link-input');
   navigator.clipboard.writeText(input.value).then(()=>toast('Link copiado! ✓','success')).catch(()=>{input.select();document.execCommand('copy');toast('Link copiado!','success')});
 }
-function openPublicPage(){
-  renderPublicPage();
+async function openPublicPage(){
   document.getElementById('public-musician-page').style.display='block';
+  // Show loading state
+  const el = document.getElementById('public-scales-list');
+  if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)">⏳ Carregando escalas...</div>';
+  // Fetch scales from Supabase (no login needed - service role key)
+  try {
+    const rows = await sbSelect('scales', 'order=data.asc');
+    if (rows && rows.length) {
+      const cache = getCache();
+      cache.scales = rows.map(r => ({
+        id: r.id, titulo: r.titulo, data: r.data, hora: r.hora,
+        tema: r.tema, cultoType: r.culto_type,
+        musicians: typeof r.musicians === 'string' ? JSON.parse(r.musicians) : (r.musicians || [])
+      }));
+      setCache(cache);
+    }
+  } catch(e) {
+    console.warn('Public scales fetch failed, using cache:', e.message);
+  }
+  renderPublicPage();
 }
 function closePublicPage(){
   document.getElementById('public-musician-page').style.display='none';
