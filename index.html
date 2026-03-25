@@ -1320,7 +1320,24 @@ async function sbUpdate(table, id, data) {
 // ─── LOCAL CACHE // ─── LOCAL CACHE (fallback + speed) ──────────────────────────────────────────
 const DB_KEY = 'nova-vida-cache-v1';
 function getCache(){try{return JSON.parse(localStorage.getItem(DB_KEY))||defaultDB()}catch{return defaultDB()}}
-function setCache(db){localStorage.setItem(DB_KEY,JSON.stringify(db))}
+
+// In-memory foto store — not persisted to localStorage (too large)
+const _fotoStore = {};
+function getFotoCache(memberId) { return _fotoStore[memberId] || null; }
+function setFotoCache(memberId, foto) { if(foto) _fotoStore[memberId] = foto; }
+function setCache(db){
+  try {
+    // Strip foto (large base64) before saving to localStorage to avoid quota
+    const toSave = {...db, members: (db.members||[]).map(m => {
+      const {foto, ...rest} = m; return rest;
+    })};
+    localStorage.setItem(DB_KEY, JSON.stringify(toSave));
+  } catch(e) {
+    // If still quota exceeded, save without members
+    try { localStorage.setItem(DB_KEY, JSON.stringify({...db, members:[], registeredMembers:[]})); }
+    catch(e2) { console.warn('Cache indisponível:', e2.message); }
+  }
+}
 
 // Keep legacy getDB/saveDB pointing to cache for any sync-safe operations
 function getDB(){return getCache()}
@@ -1356,31 +1373,34 @@ const DB = {
     try {
       const rows = await sbFetch('GET','members',null,'select=id,foto&order=created_at.desc');
       if (!rows||!rows.length) return;
-      const db = getCache();
       let changed = false;
       rows.forEach(r => {
         if (!r.foto) return;
-        const m = db.members.find(x => x.id === r.id);
-        if (m && m.foto !== r.foto) { m.foto = r.foto; changed = true; }
+        if (getFotoCache(r.id) !== r.foto) {
+          setFotoCache(r.id, r.foto);
+          // Update in-memory member object too
+          const db = getCache();
+          const m = db.members.find(x => x.id === r.id);
+          if (m) { m.foto = r.foto; changed = true; }
+        }
       });
       if (changed) {
-        db.registeredMembers = db.members.filter(m => m.loginUser);
-        setCache(db);
         if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
-        // Update portal card if member is viewing their own card
-        if (typeof renderPortalCard === 'function' && portalMember) {
-          const updated = db.members.find(x => x.id === portalMember.id);
-          if (updated && updated.foto) renderPortalCard();
-        }
+        if (typeof renderPortalCard === 'function' && portalMember) renderPortalCard();
       }
     } catch(e) { console.warn('Fotos - erro ao buscar:', e.message); }
   },
 
   // Fetch single member foto
   async getMemberFoto(memberId) {
+    // Check in-memory store first
+    const cached = getFotoCache(memberId);
+    if (cached) return cached;
     try {
       const rows = await sbFetch('GET','members',null,'select=id,foto&id=eq.'+memberId);
-      return (rows&&rows[0]) ? rows[0].foto : null;
+      const foto = (rows&&rows[0]) ? rows[0].foto : null;
+      if (foto) setFotoCache(memberId, foto);
+      return foto;
     } catch(e) { return null; }
   },
   async upsertMember(m) {
@@ -1635,6 +1655,7 @@ function updateBadges(){
   const db=getDB();
   document.getElementById('badge-members').textContent=db.members.length;
   document.getElementById('badge-prayers').textContent=db.prayers.length;
+  updateSigBadge();
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
@@ -2153,6 +2174,11 @@ const _origSaveMember = saveMember;
 
 // ─── ENHANCED viewMember with new card design + QR ────────────────────────────
 function buildMemberCard(m, forPrint = false) {
+  // Read foto from in-memory store if not on object (fotos not persisted to localStorage)
+  if (!m.foto && typeof getFotoCache === 'function') {
+    const f = getFotoCache(m.id);
+    if (f) m = {...m, foto: f};
+  }
   const qrId    = forPrint ? 'qr-print' : ('qr-modal-' + m.id);
   const cardId  = 'member-card-el-' + m.id;
   const photoEl = m.foto
@@ -2276,7 +2302,7 @@ function viewMember(id) {
     const qrEl = document.getElementById('qr-modal-' + m.id);
     if (qrEl && typeof QRCode !== 'undefined') {
       qrEl.innerHTML = '';
-      new QRCode(qrEl, { text: `ICNV:${m.id}:${m.nome}`, width: 44, height: 44, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M });
+      new QRCode(qrEl, { text: 'ICNV:' + m.id, width: 44, height: 44, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M });
     }
   }, 100);
 
@@ -2502,8 +2528,12 @@ function printCard() {
   const body = document.getElementById('detail-body');
   const memberId = body.dataset.memberId;
   const db = getDB();
-  const m = db.members.find(x => x.id === memberId);
+  let m = db.members.find(x => x.id === memberId);
   if (!m) return;
+  if (!m.foto && typeof getFotoCache === 'function') {
+    const f = getFotoCache(m.id);
+    if (f) m = {...m, foto: f};
+  }
 
   const printArea = document.getElementById('print-area');
   printArea.style.display = 'block';
@@ -2523,7 +2553,7 @@ function printCard() {
     const qrEl = printArea.querySelector('#qr-print');
     if (qrEl && typeof QRCode !== 'undefined') {
       qrEl.innerHTML = '';
-      new QRCode(qrEl, { text: 'ICNV:'+m.id+':'+m.nome, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
+      new QRCode(qrEl, { text: 'ICNV:' + m.id, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
     }
     setTimeout(() => { window.print(); printArea.style.display='none'; printArea.innerHTML=''; }, 400);
   }, 200);
@@ -2627,7 +2657,7 @@ function showRegCardPreview() {
     const qrEl = prev.querySelector('#qr-modal-PREV');
     if (qrEl && typeof QRCode !== 'undefined') {
       qrEl.innerHTML = '';
-      new QRCode(qrEl, { text: 'ICNV:PREV:' + nome, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
+      new QRCode(qrEl, { text: 'ICNV:PREV', width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
     }
   }, 150);
 }
@@ -2732,7 +2762,12 @@ function renderPortalCard() {
 
   const statusEl = document.getElementById('portal-card-status');
   const displayEl = document.getElementById('portal-card-display');
-  const m = getDB().members.find(x => x.id === portalMember.id) || portalMember;
+  let m = getDB().members.find(x => x.id === portalMember.id) || portalMember;
+  // Enrich with foto from store
+  if (!m.foto && typeof getFotoCache === 'function') {
+    const f = getFotoCache(m.id);
+    if (f) m = {...m, foto: f};
+  }
 
   if (m.cardStatus === 'pending_signature') {
     statusEl.innerHTML = `
@@ -2748,7 +2783,7 @@ function renderPortalCard() {
       const qrEl = displayEl.querySelector('[id^="qr-modal-"]');
       if (qrEl && typeof QRCode !== 'undefined') {
         qrEl.innerHTML = '';
-        new QRCode(qrEl, { text: 'ICNV:'+m.id+':'+m.nome, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(qrEl, { text: 'ICNV:' + m.id, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
       }
     }, 150);
     displayEl.innerHTML += `<button class="card-download-btn" disabled style="margin-top:16px;max-width:440px;display:flex;width:100%">
@@ -2770,7 +2805,7 @@ function renderPortalCard() {
       const qrEl = displayEl.querySelector('[id^="qr-modal-"]');
       if (qrEl && typeof QRCode !== 'undefined') {
         qrEl.innerHTML = '';
-        new QRCode(qrEl, { text: 'ICNV:'+m.id+':'+m.nome, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(qrEl, { text: 'ICNV:' + m.id, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
       }
     }, 150);
     displayEl.innerHTML += `<button class="card-download-btn" onclick="downloadCardPNG('${m.id}')" style="max-width:440px;display:flex;width:100%;margin-top:16px">
@@ -2878,7 +2913,7 @@ async function downloadCardPNG(memberId) {
       const qrEl = renderArea.querySelector('[id^="qr-modal-"]');
       if (qrEl && typeof QRCode !== 'undefined') {
         qrEl.innerHTML = '';
-        new QRCode(qrEl, { text: 'ICNV:'+m.id+':'+m.nome, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(qrEl, { text: 'ICNV:' + m.id, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
         setTimeout(res, 300);
       } else res();
     });
@@ -2944,8 +2979,8 @@ function renderSigPendingList(members) {
     const approved = m.cardStatus === 'approved';
     return `
     <div class="sig-pending-card" id="pending-card-${m.id}" style="border-left:4px solid ${approved ? '#16a34a' : 'var(--orange)'}">
-      ${m.foto
-        ? `<img src="${m.foto}" class="sig-pending-av" alt="${m.nome}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+      ${(m.foto || (typeof getFotoCache==='function' && getFotoCache(m.id)))
+        ? `<img src="${m.foto || getFotoCache(m.id)}" class="sig-pending-av" alt="${m.nome}" style="width:46px;height:46px;border-radius:50%;object-fit:cover;flex-shrink:0">`
         : `<div class="sig-pending-av-init" style="background:${avatarColor(m.nome)};width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:white;flex-shrink:0">${initials(m.nome)}</div>`}
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:14px">${m.nome}</div>
@@ -3064,11 +3099,6 @@ function saveSignature() {
 }
 
 // Override updateBadges to include sig badge
-const _origUpdateBadges = updateBadges;
-function updateBadges() {
-  _origUpdateBadges();
-  updateSigBadge();
-}
 
 
 // ─── AUTHORIZE CARD (fictitious signature) ────────────────────────────────────
@@ -3369,7 +3399,7 @@ async function doExportCard(m, format) {
       const qrEl = renderArea.querySelector('[id^="qr-modal-"]');
       if (qrEl && typeof QRCode !== 'undefined') {
         qrEl.innerHTML = '';
-        new QRCode(qrEl, { text:'ICNV:'+m.id+':'+m.nome, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
+        new QRCode(qrEl, { text: 'ICNV:' + m.id, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
         setTimeout(res, 350);
       } else res();
     });
