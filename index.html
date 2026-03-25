@@ -1424,15 +1424,17 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // Simple REST helper — no SDK, no Web Workers, no cloning issues
 async function sbFetch(method, table, body=null, filters='') {
   const url = SUPA_URL + '/rest/v1/' + table + (filters ? '?' + filters : '');
-  const opts = {
-    method,
-    headers: {
-      'apikey': SUPA_KEY,
-      'Authorization': 'Bearer ' + SUPA_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
-    },
+  const headers = {
+    'apikey': SUPA_KEY,
+    'Authorization': 'Bearer ' + SUPA_KEY,
   };
+  if (method === 'GET') {
+    headers['Accept'] = 'application/json';
+  } else {
+    headers['Content-Type'] = 'application/json';
+    headers['Prefer'] = method === 'POST' ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal';
+  }
+  const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   if (!res.ok) {
@@ -2199,6 +2201,7 @@ async function loginSuccess(username, user) {
     ]);
   } catch(e) {
     console.warn('Sync on login failed, using cache:', e.message);
+    toast('Aviso: usando dados locais. Verifique sua conexão.', 'info');
   } finally {
     hideLoadingOverlay();
   }
