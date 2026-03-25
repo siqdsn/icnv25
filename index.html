@@ -734,10 +734,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
     <div class="page" id="page-leitura">
   <div class="section-header">
     <div class="section-heading">📖 Plano de Leitura</div>
-    <button class="btn btn-primary" onclick="openAddReadingPlanModal()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Adicionar Dia
-    </button>
+
   </div>
 
   <!-- Seletor de mês -->
@@ -751,11 +748,14 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
       <option value="9">Setembro</option><option value="10">Outubro</option>
       <option value="11">Novembro</option><option value="12">Dezembro</option>
     </select>
-    <button class="btn btn-ghost btn-sm" onclick="loadAdminLeitura()">🔄 Atualizar</button>
+    <button class="btn btn-primary" onclick="saveAllReadingPlan()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+      Salvar Mês
+    </button>
   </div>
 
   <div class="card" id="leitura-admin-list">
-    <div style="text-align:center;padding:40px;color:var(--gray);font-size:14px">Selecione o mês e clique em Atualizar.</div>
+    <div style="text-align:center;padding:40px;color:var(--gray);font-size:14px">⏳ Carregando...</div>
   </div>
 </div>
 
@@ -2825,15 +2825,34 @@ function goToMemberPortal() {
 }
 
 // ─── MEMBER PORTAL ────────────────────────────────────────────────────────────
-function openMemberPortal(member) {
+async function openMemberPortal(member) {
   portalMember = member;
   document.getElementById('member-portal').style.display = 'block';
-  // Set header info
   document.getElementById('portal-username-display').textContent = member.nome.split(' ')[0];
   document.getElementById('portal-av-init').textContent = initials(member.nome);
   document.getElementById('portal-member-name').textContent = member.nome;
   const since = member.registeredAt ? new Date(member.registeredAt).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}) : '';
   document.getElementById('portal-member-since').textContent = 'Membro desde ' + since;
+
+  // Fetch foto if not in cache
+  if (!member.foto) {
+    const cached = getFotoCache(member.id);
+    if (cached) {
+      member.foto = cached;
+      portalMember = member;
+    } else {
+      // Fetch from Supabase
+      try {
+        const rows = await sbFetch('GET','members',null,'select=id,foto&id=eq.'+member.id);
+        if (rows && rows[0] && rows[0].foto) {
+          member.foto = rows[0].foto;
+          portalMember = member;
+          setFotoCache(member.id, member.foto);
+        }
+      } catch(e) { console.warn('foto portal:', e.message); }
+    }
+  }
+
   // Photo in header
   const photoWrap = document.getElementById('portal-member-photo-wrap');
   if (member.foto) {
@@ -3378,40 +3397,77 @@ async function loadAdminLeitura() {
   if (!el) return;
   const nomeMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mes-1];
+  const ano = new Date().getFullYear();
+  const diasNoMes = new Date(ano, mes, 0).getDate(); // last day of month
+
   el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--gray)">⏳ Carregando...</div>';
+
+  let saved = {};
   try {
     const rows = await sbFetch('GET','reading_plan',null,'mes=eq.'+mes+'&order=dia.asc');
-    if (!rows || !rows.length) {
-      el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--gray)">
-        <div style="font-size:40px;margin-bottom:12px">📖</div>
-        <div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhuma leitura para ${nomeMes}</div>
-        <div style="font-size:13px">Clique em "Adicionar Dia" para começar.</div>
+    (rows||[]).forEach(r => { saved[r.dia] = r; });
+  } catch(e) { console.warn('Leitura admin:', e.message); }
+
+  // Build a row for every day of the month
+  let rows_html = '';
+  for (let d = 1; d <= diasNoMes; d++) {
+    const r = saved[d] || {};
+    const today = new Date().getMonth()+1 === mes && new Date().getDate() === d;
+    rows_html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.05)">
+        <div style="width:36px;height:36px;border-radius:50%;background:${today?'var(--orange)':'#f3f4f6'};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${today?'white':'#6b7280'};flex-shrink:0">${d}</div>
+        <input type="text" id="rp-passagem-${d}" value="${(r.conteudo||'').replace(/"/g,'&quot;')}"
+          placeholder="Passagem bíblica do dia ${d}..."
+          style="flex:1;padding:9px 12px;border:1.5px solid rgba(0,0,0,.08);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border .15s"
+          onfocus="this.style.borderColor='var(--orange)'" onblur="this.style.borderColor='rgba(0,0,0,.08)'">
+        <input type="text" id="rp-obs-${d}" value="${(r.observacao||'').replace(/"/g,'&quot;')}"
+          placeholder="Obs..."
+          style="width:180px;padding:9px 12px;border:1.5px solid rgba(0,0,0,.08);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border .15s;color:var(--gray)"
+          onfocus="this.style.borderColor='var(--orange)'" onblur="this.style.borderColor='rgba(0,0,0,.08)'">
       </div>`;
-      return;
-    }
-    el.innerHTML = `
-      <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--orange);display:inline-block">
-        ${nomeMes} — ${rows.length} dia${rows.length>1?'s':''}
-      </div>
-      <div style="display:grid;gap:8px">
-        ${rows.map(r => `
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:#f9fafb;border-radius:12px;border:1px solid rgba(0,0,0,.06)">
-            <div style="width:34px;height:34px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:white;flex-shrink:0">${r.dia}</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:14px">${r.conteudo}</div>
-              ${r.observacao?`<div style="font-size:12px;color:var(--gray);margin-top:2px;font-style:italic">${r.observacao}</div>`:''}
-            </div>
-            <div style="display:flex;gap:6px;flex-shrink:0">
-              <button onclick="editReadingDay(${JSON.stringify(r).replace(/"/g,'&quot;')})"
-                style="background:var(--orange-subtle);color:var(--orange);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">✏️</button>
-              <button onclick="deleteReadingDay('${r.id}', ${r.mes}, ${r.dia})"
-                style="background:#fef2f2;color:#dc2626;border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">🗑️</button>
-            </div>
-          </div>`).join('')}
-      </div>`;
-  } catch(e) {
-    el.innerHTML = '<div style="padding:20px;color:#dc2626;font-size:14px">Erro ao carregar: ' + e.message + '</div>';
   }
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--orange)">
+      <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700">${nomeMes} ${ano}</div>
+      <div style="font-size:13px;color:var(--gray)">${Object.keys(saved).length} de ${diasNoMes} dias preenchidos</div>
+    </div>
+    <div style="margin-bottom:8px;display:flex;gap:8px">
+      <div style="flex:1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);padding-left:46px">Passagem Bíblica</div>
+      <div style="width:180px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray)">Observação</div>
+    </div>
+    ${rows_html}
+    <div style="margin-top:20px;text-align:right">
+      <button class="btn btn-primary" onclick="saveAllReadingPlan()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+        Salvar ${nomeMes}
+      </button>
+    </div>`;
+}
+
+async function saveAllReadingPlan() {
+  const mes = parseInt(document.getElementById('leitura-mes-select')?.value || new Date().getMonth()+1);
+  const ano = new Date().getFullYear();
+  const diasNoMes = new Date(ano, mes, 0).getDate();
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Salvando...'; }
+
+  let saved = 0, errors = 0;
+  for (let d = 1; d <= diasNoMes; d++) {
+    const passagem = document.getElementById('rp-passagem-'+d)?.value?.trim();
+    const obs = document.getElementById('rp-obs-'+d)?.value?.trim();
+    if (!passagem) continue; // skip empty days
+    const row = { id:'RP-'+mes+'-'+d, mes, dia:d, conteudo:passagem, observacao:obs||null };
+    try {
+      await sbFetch('POST','reading_plan',row,'');
+      saved++;
+    } catch(e) { errors++; console.warn('Dia '+d+':', e.message); }
+  }
+
+  if (btn) { btn.disabled=false; btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg> Salvar Mês'; }
+  if (errors) toast(saved+' dias salvos, '+errors+' erros.', 'info');
+  else toast('✅ '+saved+' dias salvos!', 'success');
+  loadAdminLeitura();
 }
 
 function editReadingDay(r) {
