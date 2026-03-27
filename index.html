@@ -2894,14 +2894,18 @@ async function renderPortalLeitura() {
   const nomeMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][now.getMonth()];
 
-  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray);font-size:14px">⏳ Carregando...</div>';
-
   let plano = [];
   try {
-    const rows = await sbFetch('GET','reading_plan',null,
-      'mes=eq.'+mes+'&order=dia.asc');
-    plano = rows || [];
-  } catch(e) { console.warn('Plano de leitura:', e.message); }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const url = SUPA_URL + '/rest/v1/reading_plan?mes=eq.'+mes+'&order=dia.asc';
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY, 'Accept': 'application/json' }
+    });
+    clearTimeout(timer);
+    if (res.ok) plano = await res.json() || [];
+  } catch(e) { console.warn('Plano portal:', e.message); }
 
   if (!plano.length) {
     el.innerHTML = `
@@ -3412,13 +3416,23 @@ async function loadAdminLeitura() {
   const ano = new Date().getFullYear();
   const diasNoMes = new Date(ano, mes, 0).getDate(); // last day of month
 
-  el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--gray)">⏳ Carregando...</div>';
-
+  // Render grid immediately with empty inputs — don't wait for network
   let saved = {};
   try {
-    const rows = await sbFetch('GET','reading_plan',null,'mes=eq.'+mes+'&order=dia.asc');
-    (rows||[]).forEach(r => { saved[r.dia] = r; });
-  } catch(e) { console.warn('Leitura admin:', e.message); }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const url = SUPA_URL + '/rest/v1/reading_plan?mes=eq.'+mes+'&order=dia.asc';
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY, 'Accept': 'application/json' }
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const rows = await res.json();
+      (rows||[]).forEach(r => { saved[r.dia] = r; });
+    }
+  } catch(e) { console.warn('Plano de leitura:', e.message); }
+  // Grid renders regardless — saved may be empty if network blocked
 
   // Build a row for every day of the month
   let rows_html = '';
