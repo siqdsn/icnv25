@@ -683,7 +683,42 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 
     <!-- ═══ PRAYERS ════════════════════════════════════ -->
     <div class="page" id="page-prayers">
+      <div class="section-header">
+        <div class="section-heading">🙏 Pedidos de Oração</div>
+        <button class="btn btn-primary" onclick="openNewPrayerModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Pedido
+        </button>
+      </div>
       <div id="prayers-list"></div>
+    </div>
+
+    <!-- MODAL: NOVO PEDIDO DE ORAÇÃO -->
+    <div class="modal-overlay" id="modal-prayer">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <span class="modal-title">🙏 Novo Pedido de Oração</span>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('modal-prayer')">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label>Nome</label>
+            <input type="text" id="prayer-nome" placeholder="Nome do solicitante">
+          </div>
+          <div class="field">
+            <label>Pedido</label>
+            <textarea id="prayer-texto" rows="4" placeholder="Descreva o pedido de oração..." style="width:100%;padding:12px;border:1.5px solid rgba(0,0,0,.1);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;resize:vertical"></textarea>
+          </div>
+          <div class="field" style="flex-direction:row;align-items:center;gap:10px">
+            <input type="checkbox" id="prayer-anonimo" style="width:16px;height:16px;cursor:pointer">
+            <label for="prayer-anonimo" style="font-size:14px;cursor:pointer">Pedido anônimo</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('modal-prayer')">Cancelar</button>
+          <button class="btn btn-primary" onclick="submitAdminPrayer()">💾 Salvar Pedido</button>
+        </div>
+      </div>
     </div>
 
     <!-- ═══ EVENTS ═════════════════════════════════════ -->
@@ -1587,7 +1622,7 @@ const DB = {
   },
   async insertPrayer(p) {
     try {
-      await sbUpsert('prayers', {id:p.id, nome:p.nome, texto:p.texto, anonimo:p.anonimo||false, author_id:p.authorId||null, data:p.data});
+      await sbUpsert('prayers', {id:p.id, nome:p.nome, texto:p.texto, anonimo:p.anonimo||false, author_id:p.authorId||null, data:p.data, notificado:false});
       await DB.syncCachePrayers();
     } catch(e) { console.error('Oração - erro ao salvar:', e.message); }
   },
@@ -1598,7 +1633,7 @@ const DB = {
   async syncCachePrayers() {
     const rows = await DB.getPrayers();
     const cache = getCache();
-    cache.prayers = rows.map(r => ({id:r.id, nome:r.nome, texto:r.texto, anonimo:r.anonimo, authorId:r.author_id, data:r.data}));
+    cache.prayers = rows.map(r => ({id:r.id, nome:r.nome, texto:r.texto, anonimo:r.anonimo, authorId:r.author_id, data:r.data, notificado:r.notificado||false}));
     setCache(cache);
   },
 
@@ -1878,9 +1913,71 @@ function renderBirthdays(){
 function switchBirthdayTab(t){currentBirthdayTab=t;document.getElementById('tab-birth').classList.toggle('active',t==='birth');document.getElementById('tab-baptism').classList.toggle('active',t==='baptism');renderBirthdays()}
 
 // ─── PRAYERS ─────────────────────────────────────────────────────────────────
+
+async function notificarOracaoRecebida(prayerId) {
+  try {
+    await sbFetch('PATCH','prayers',{notificado:true},'id=eq.'+prayerId);
+    const db = getDB();
+    const p = db.prayers.find(x=>x.id===prayerId);
+    if (p) { p.notificado = true; saveDB(db); }
+    renderPrayers();
+    toast('✅ Membro notificado: pedido recebido!','success');
+  } catch(e) {
+    if (e.message && e.message.includes('notificado')) {
+      toast('Execute no Supabase: ALTER TABLE prayers ADD COLUMN notificado boolean default false;', 'error');
+    } else {
+      toast('Erro ao notificar: ' + e.message, 'error');
+    }
+  }
+}
+
+function openNewPrayerModal() {
+  document.getElementById('prayer-nome').value = '';
+  document.getElementById('prayer-texto').value = '';
+  document.getElementById('prayer-anonimo').checked = false;
+  openModal('modal-prayer');
+}
+
+async function submitAdminPrayer() {
+  const nome  = document.getElementById('prayer-nome').value.trim();
+  const texto = document.getElementById('prayer-texto').value.trim();
+  if (!texto) { toast('Escreva o pedido de oração!', 'error'); return; }
+  const p = {
+    id: 'PR-' + Date.now(),
+    nome: nome || 'Pr. Antonio Carlos',
+    texto,
+    anonimo: document.getElementById('prayer-anonimo').checked,
+    authorId: null,
+    data: new Date().toISOString().split('T')[0],
+    notificado: false,
+  };
+  try {
+    await DB.insertPrayer(p);
+    closeModal('modal-prayer');
+    renderPrayers();
+    toast('✅ Pedido registrado!', 'success');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
 function renderPrayers(){
   const db=getDB();const el=document.getElementById('prayers-list');
-  el.innerHTML=db.prayers.length?db.prayers.map(p=>`<div class="prayer-card"><div class="prayer-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div style="flex:1"><div class="prayer-name">${p.anonimo?'🔒 Anônimo':p.nome}</div><div class="prayer-text">${p.texto}</div><div class="prayer-date">${fmtDate(p.data)}</div></div><button class="btn btn-danger btn-sm btn-icon" onclick="deletePrayer('${p.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/></svg></button></div>`).join(''):'<div class="empty-state"><p>Nenhum pedido de oração ainda</p></div>';
+  el.innerHTML=db.prayers.length?db.prayers.map(p=>`<div class="prayer-card" style="border-left:4px solid ${p.notificado?'#16a34a':'var(--orange)'}">
+  <div class="prayer-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+  <div style="flex:1">
+    <div class="prayer-name">${p.anonimo?'🔒 Anônimo':p.nome}</div>
+    <div class="prayer-text">${p.texto}</div>
+    <div class="prayer-date">${fmtDate(p.data)}</div>
+    ${p.notificado?`<div style="margin-top:6px;font-size:12px;color:#16a34a;font-weight:600">✅ Notificado</div>`:''}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
+    ${p.notificado
+      ? `<span style="font-size:11px;background:#dcfce7;color:#16a34a;padding:4px 10px;border-radius:20px;font-weight:600;white-space:nowrap">✅ Recebido</span>`
+      : `<button onclick="notificarOracaoRecebida('${p.id}')" style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:9px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">
+           🔔 Notificar Recebido
+         </button>`}
+    <button class="btn btn-danger btn-sm btn-icon" onclick="deletePrayer('${p.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/></svg></button>
+  </div>
+</div>`).join(''):'<div class="empty-state"><p>Nenhum pedido de oração ainda</p></div>';
 }
 function savePrayer(){
   const texto=document.getElementById('p-texto').value.trim();
@@ -1930,7 +2027,9 @@ function renderMusicos(){
 
   const el=document.getElementById('scales-list');
   if(!db.scales||!db.scales.length){el.innerHTML='<div class="empty-state"><p>Nenhuma escala cadastrada ainda</p></div>';return}
-  const sorted=[...db.scales].sort((a,b)=>a.data.localeCompare(b.data));
+  const _today=new Date().toISOString().split('T')[0];
+  const sorted=[...db.scales].filter(s=>s.data>=_today).sort((a,b)=>a.data.localeCompare(b.data));
+  if(!sorted.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Nenhum culto futuro agendado no momento</div>';return}
   el.innerHTML=sorted.map(s=>{
     const confirmSummary=s.musicians.reduce((acc,m)=>{acc[m.confirmado]=(acc[m.confirmado]||0)+1;return acc},{});
     return`<div style="background:white;border-radius:var(--radius-lg);border:1px solid rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px">
@@ -2095,14 +2194,17 @@ function renderPublicPage(){
     </div>`).join('');
 }
 
-function confirmMusician(scaleId,idx,status){
+async function confirmMusician(scaleId,musIdx,status){
   const db=getDB();
   const scale=db.scales.find(s=>s.id===scaleId);
-  if(!scale||!scale.musicians[idx])return;
-  scale.musicians[idx].confirmado=status;
+  if(!scale||!scale.musicians[musIdx])return;
+  scale.musicians[musIdx].confirmado=status;
   saveDB(db);
   renderPublicPage();
   toast(status==='sim'?'Presença confirmada! ✅':'Ausência registrada.','info');
+  try {
+    await sbFetch('PATCH','scales',{musicians:scale.musicians},'id=eq.'+scaleId);
+  } catch(e){ console.warn('Confirmação:', e.message); }
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
@@ -3114,10 +3216,18 @@ function renderPortalPrayers() {
     el.innerHTML = '<p style="font-size:14px;color:var(--gray);text-align:center;padding:20px">Você ainda não enviou pedidos de oração.</p>';
     return;
   }
-  el.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--gray);margin-bottom:10px">Meus pedidos anteriores</div>` +
-    mine.map(p => `<div style="background:white;border-radius:12px;border:1px solid rgba(0,0,0,.06);border-left:3px solid var(--orange);padding:14px 16px;margin-bottom:8px">
-      <div style="font-size:14px;color:var(--dark)">${p.texto}</div>
-      <div style="font-size:11px;color:var(--gray);margin-top:6px">${fmtDate(p.data)} ${p.anonimo?'· Anônimo':''}</div>
+  el.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--gray);margin-bottom:10px">Meus pedidos de oração</div>` +
+    mine.map(p => `<div style="background:white;border-radius:12px;border:1px solid rgba(0,0,0,.06);border-left:4px solid ${p.notificado?'#16a34a':'var(--orange)'};padding:14px 16px;margin-bottom:10px">
+      <div style="font-size:14px;color:var(--dark);line-height:1.55">${p.texto}</div>
+      <div style="font-size:11px;color:var(--gray);margin-top:6px">${fmtDate(p.data)}${p.anonimo?' · Anônimo':''}</div>
+      ${p.notificado ? `
+      <div style="margin-top:10px;padding:10px 12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">🙏</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#16a34a">Pedido recebido</div>
+          <div style="font-size:12px;color:#15803d;margin-top:1px">Estamos orando por você.</div>
+        </div>
+      </div>` : ''}
     </div>`).join('');
 }
 
