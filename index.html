@@ -575,6 +575,10 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
       Escala de Músicos
     </button>
+    <button class="nav-item" onclick="showPage('musicos-cad',this)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><line x1="12" y1="8" x2="19" y2="7"/></svg>
+      Músicos Cadastrados
+    </button>
     <button class="nav-item" onclick="showPage('leitura',this)">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
       Plano de Leitura
@@ -767,6 +771,46 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
     </div>
 
     <!-- ═══ LGPD & TERMOS ══════════════════════════════ -->
+    <div class="page" id="page-musicos-cad">
+      <div class="section-header">
+        <div class="section-heading">🎵 Músicos Cadastrados</div>
+        <button class="btn btn-primary" onclick="openMusicianModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Cadastrar Músico
+        </button>
+      </div>
+      <div id="musicians-admin-list" class="card">
+        <div style="text-align:center;padding:40px;color:var(--gray)">⏳ Carregando...</div>
+      </div>
+    </div>
+
+    <!-- MODAL: MÚSICO -->
+    <div class="modal-overlay" id="modal-musician">
+      <div class="modal" style="max-width:420px">
+        <div class="modal-header">
+          <span class="modal-title" id="musician-modal-title">Cadastrar Músico</span>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('modal-musician')">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="mus-id">
+          <div class="field">
+            <label>Nome</label>
+            <input type="text" id="mus-nome" placeholder="Nome completo do músico">
+          </div>
+          <div class="field">
+            <label>Instrumento</label>
+            <select id="mus-inst" style="width:100%;padding:12px 14px;border:1.5px solid rgba(0,0,0,.1);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:white">
+              ${INSTRUMENTS.map ? '' : ''}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeModal('modal-musician')">Cancelar</button>
+          <button class="btn btn-primary" onclick="saveMusician()">💾 Salvar</button>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-leitura">
   <div class="section-header">
     <div class="section-heading">📖 Plano de Leitura</div>
@@ -1505,6 +1549,24 @@ function hideLoadingOverlay() {
 // ─── SUPABASE CRUD HELPERS ─────────────────────────────────────────────────────
 const DB = {
 
+  // ── MUSICIANS ──
+  async getMusicians() {
+    try {
+      const data = await sbFetch('GET','musicians',null,'ativo=eq.true&order=instrumento.asc,nome.asc');
+      return data||[];
+    } catch(e) { console.warn('Músicos:', e.message); return []; }
+  },
+  async upsertMusician(m) {
+    try {
+      await sbFetch('POST','musicians',{id:m.id,nome:m.nome,instrumento:m.instrumento,ativo:m.ativo!==false});
+    } catch(e) { console.error('Salvar músico:', e.message); throw e; }
+  },
+  async deleteMusician(id) {
+    try {
+      await sbFetch('PATCH','musicians',{ativo:false},'id=eq.'+id);
+    } catch(e) { console.error('Remover músico:', e.message); throw e; }
+  },
+
   // ── MEMBERS ──
   async getMembers() {
     // Excludes foto — keeps payload small so mobile never times out
@@ -1721,6 +1783,26 @@ function openModal(id){document.getElementById(id).classList.add('open')}
 const EC={'culto':'#f97316','estudo':'#2563eb','oracao':'#7c3aed','jovens':'#059669','especial':'#d97706'};
 const EL={'culto':'Culto','estudo':'Estudo Bíblico','oracao':'Oração','jovens':'Jovens','especial':'Especial'};
 const EE={'culto':'🙌','estudo':'📖','oracao':'🙏','jovens':'⚡','especial':'⭐'};
+
+// ─── MÚSICOS — carregados do Supabase ────────────────────────
+let MUSICIANS_LIST = []; // populated by loadMusicians()
+async function loadMusicians() {
+  try {
+    const rows = await DB.getMusicians();
+    MUSICIANS_LIST = rows.map(r => ({id:r.id, nome:r.nome, instrumento:r.instrumento}));
+  } catch(e) { console.warn('loadMusicians:', e.message); }
+}
+function getMusicianOptions(selNome=''){
+  return '<option value="">— Selecionar músico —</option>'
+    + MUSICIANS_LIST.map(m=>`<option value="${m.nome}|${m.instrumento}" ${selNome===m.nome?'selected':''}>${m.instrumento==='Vocal'?'🎤':'🎵'} ${m.nome} — ${m.instrumento}</option>`).join('')
+    + '<option value="__custom__">✏️ Outro músico...</option>';
+}
+function onMusicianPick(i){
+  const s=document.getElementById('sl-pick-'+i);
+  const c=document.getElementById('sl-custom-'+i);
+  if(!s||!c)return;
+  c.style.display=s.value==='__custom__'?'grid':'none';
+}
 const INSTRUMENTS=['Violão','Guitarra','Baixo','Bateria','Teclado','Vocal','Saxofone','Flauta','Trompete','Percussão','Outro'];
 const INST_EMOJI={'Violão':'🎸','Guitarra':'🎸','Baixo':'🎸','Bateria':'🥁','Teclado':'🎹','Vocal':'🎤','Saxofone':'🎷','Flauta':'🎵','Trompete':'🎺','Percussão':'🪘','Outro':'🎵'};
 
@@ -1773,7 +1855,7 @@ function showPage(name,el){
   if(pg)pg.classList.add('active');
   if(el)el.classList.add('active');
   currentPage=name;
-  const titles={dashboard:'Dashboard',members:'Membros',birthdays:'Aniversariantes',prayers:'Pedidos de Oração',events:'Agenda da Igreja',musicos:'Escala de Músicos',lgpd:'LGPD & Termos de Uso'};
+  const titles={dashboard:'Dashboard',members:'Membros',birthdays:'Aniversariantes',prayers:'Pedidos de Oração',events:'Agenda da Igreja',musicos:'Escala de Músicos','musicos-cad':'Músicos Cadastrados',leitura:'Plano de Leitura',lgpd:'LGPD & Termos de Uso'};
   document.getElementById('topbar-title').textContent=titles[name]||name;
   const btn=document.getElementById('topbar-btn');
   const btnText=document.getElementById('topbar-btn-text');
@@ -1788,6 +1870,79 @@ function openAddModal(){
   else if(currentPage==='events')openEventModal();
   else if(currentPage==='musicos')openScaleModal();
 }
+
+// ─── MÚSICOS ADMIN ────────────────────────────────────────────
+function openMusicianModal(m=null) {
+  document.getElementById('mus-id').value = m ? m.id : '';
+  document.getElementById('mus-nome').value = m ? m.nome : '';
+  document.getElementById('musician-modal-title').textContent = m ? 'Editar Músico' : 'Cadastrar Músico';
+  // Populate instrument select
+  const sel = document.getElementById('mus-inst');
+  sel.innerHTML = INSTRUMENTS.map(ins =>
+    `<option${m&&m.instrumento===ins?' selected':''}>${ins}</option>`
+  ).join('');
+  openModal('modal-musician');
+}
+
+async function saveMusician() {
+  const nome = document.getElementById('mus-nome').value.trim();
+  const inst = document.getElementById('mus-inst').value;
+  if (!nome) { toast('Informe o nome do músico!', 'error'); return; }
+  const id = document.getElementById('mus-id').value || 'MUS-' + Date.now();
+  try {
+    await DB.upsertMusician({id, nome, instrumento:inst, ativo:true});
+    toast('✅ Músico salvo!', 'success');
+    closeModal('modal-musician');
+    await loadMusicians();
+    renderMusiciansAdmin();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function removeMusician(id, nome) {
+  if (!confirm(`Remover "${nome}" da lista de músicos?`)) return;
+  try {
+    await DB.deleteMusician(id);
+    toast(`${nome} removido.`, 'info');
+    await loadMusicians();
+    renderMusiciansAdmin();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function renderMusiciansAdmin() {
+  const el = document.getElementById('musicians-admin-list');
+  if (!el) return;
+  if (!MUSICIANS_LIST.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray)"><div style="font-size:40px;margin-bottom:12px">🎵</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum músico cadastrado</div><div style="font-size:13px">Clique em "Cadastrar Músico" para começar.</div></div>';
+    return;
+  }
+  // Group by instrument
+  const groups = {};
+  MUSICIANS_LIST.forEach(m => {
+    if (!groups[m.instrumento]) groups[m.instrumento] = [];
+    groups[m.instrumento].push(m);
+  });
+  const INST_EMOJI_MAP = {Vocal:'🎤',Violão:'🎸',Guitarra:'🎸',Baixo:'🎸',Bateria:'🥁',Teclado:'🎹',Saxofone:'🎷',Flauta:'🎵',Trompete:'🎺',Percussão:'🥁',Outro:'🎵'};
+  el.innerHTML = Object.entries(groups).map(([inst, members]) => `
+    <div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gray);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--orange)">
+        ${INST_EMOJI_MAP[inst]||'🎵'} ${inst}
+      </div>
+      <div style="display:grid;gap:8px">
+        ${members.map(m => `
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:#f9fafb;border-radius:12px;border:1px solid rgba(0,0,0,.06)">
+            <div style="width:38px;height:38px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:white;flex-shrink:0">${m.nome[0]}</div>
+            <div style="flex:1;font-weight:600;font-size:14px">${m.nome}</div>
+            <div style="display:flex;gap:6px">
+              <button onclick="openMusicianModal(${JSON.stringify(m).replace(/"/g,'&quot;')})"
+                style="background:var(--orange-subtle);color:var(--orange);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">✏️ Editar</button>
+              <button onclick="removeMusician('${m.id}','${m.nome}')"
+                style="background:#fef2f2;color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🗑️</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
 function renderPage(n){
   if(n==='dashboard')renderDashboard();
   else if(n==='members'){ renderMembers(); updateSigBadge(); }
@@ -1795,6 +1950,7 @@ function renderPage(n){
   else if(n==='prayers')renderPrayers();
   else if(n==='events')renderEvents();
   else if(n==='musicos')renderMusicos();
+  else if(n==='musicos-cad'){ loadMusicians().then(renderMusiciansAdmin); }
   else if(n==='leitura')loadAdminLeitura();
   else if(n==='lgpd')updateLGPDInfo();
   updateBadges();
@@ -2126,8 +2282,35 @@ function addMusicianSlot(data=null){
   const slotsEl=document.getElementById('musician-slots-form');
   const div=document.createElement('div');
   div.id=`slot-${i}`;
-  div.style.cssText='display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px;padding:14px;background:var(--light);border-radius:var(--radius)';
-  div.innerHTML=`<div class="field"><label>Nome do Músico</label><input type="text" id="sl-nome-${i}" value="${data?data.nome:''}" placeholder="Nome completo"></div><div class="field"><label>Instrumento</label><select id="sl-inst-${i}">${INSTRUMENTS.map(ins=>`<option${data&&data.instrumento===ins?' selected':''}>${ins}</option>`).join('')}</select></div><button class="btn btn-danger btn-icon" onclick="document.getElementById('slot-${i}').remove()" title="Remover"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+  div.style.cssText='margin-bottom:10px;padding:14px;background:var(--light);border-radius:var(--radius)';
+  const isCustom=data&&!MUSICIANS_LIST.find(m=>m.nome===data.nome);
+  div.innerHTML=`
+    <div style="display:flex;align-items:flex-end;gap:10px">
+      <div style="flex:1">
+        <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:6px">Músico</label>
+        <select id="sl-pick-${i}" onchange="onMusicianPick(${i})"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,.1);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:white">
+          ${getMusicianOptions(data?data.nome:'')}
+        </select>
+      </div>
+      <button class="btn btn-danger btn-icon" onclick="document.getElementById('slot-${i}').remove()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="sl-custom-${i}" style="display:${isCustom?'grid':'none'};grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:6px">Nome</label>
+        <input type="text" id="sl-nome-${i}" value="${data&&isCustom?data.nome:''}" placeholder="Nome completo"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,.1);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--gray);display:block;margin-bottom:6px">Instrumento</label>
+        <select id="sl-inst-${i}"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,.1);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;background:white">
+          ${INSTRUMENTS.map(ins=>`<option${data&&data.instrumento===ins?' selected':''}>${ins}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
   slotsEl.appendChild(div);
 }
 
@@ -2136,11 +2319,22 @@ function saveScale(){
   const data=document.getElementById('sc-data').value;
   if(!titulo||!data){toast('Preencha título e data!','error');return}
   const musicians=[];
-  document.querySelectorAll('[id^="sl-nome-"]').forEach(el=>{
-    const i=el.id.replace('sl-nome-','');
-    const nome=el.value.trim();
-    const instrumento=document.getElementById('sl-inst-'+i)?.value;
-    if(nome)musicians.push({nome,instrumento,confirmado:'aguardando'});
+  document.querySelectorAll('[id^="slot-"]').forEach(slotDiv=>{
+    const i=slotDiv.id.replace('slot-','');
+    const pickEl = document.getElementById('sl-pick-'+i);
+    let nome='', instrumento='';
+    if (pickEl && pickEl.value && pickEl.value !== '__custom__' && pickEl.value !== '') {
+      // Pre-defined musician
+      const [n, inst] = pickEl.value.split('|');
+      nome = n; instrumento = inst;
+    } else {
+      // Custom musician
+      const nomeEl = document.getElementById('sl-nome-'+i);
+      const instEl = document.getElementById('sl-inst-'+i);
+      nome = nomeEl ? nomeEl.value.trim() : '';
+      instrumento = instEl ? instEl.value : '';
+    }
+    if(nome) musicians.push({nome, instrumento, confirmado:'aguardando'});
   });
   const db=getDB();
   const id=document.getElementById('sc-id').value||uid();
@@ -2344,8 +2538,9 @@ async function loginSuccess(username, user) {
   renderPage('dashboard');
   updateBadges();
   updateSigBadge();
-  // Load fotos in background
   DB.fetchAllFotos();
+  // Load musicians for scale dropdown
+  loadMusicians();
 }
 
 function logout() {
@@ -2425,7 +2620,7 @@ function buildMemberCard(m, forPrint = false) {
 
       <!-- HEADER STRIP -->
       <div style="background:linear-gradient(90deg,#f28e43,#e07030);padding:10px 18px;display:flex;align-items:center;gap:10px">
-        <img src="" data-logo="1" style="width:30px;height:auto;filter:brightness(10)" alt="ICNV">
+        <img src="https://qshstgxxdgqfalekohih.supabase.co/storage/v1/object/public/site-assets/logo-icnv.png" style="width:30px;height:auto;filter:brightness(10)" alt="ICNV">
         <div>
           <div style="font-family:'Playfair Display',serif;font-size:10px;font-weight:900;color:white;letter-spacing:.3px;line-height:1.2">ICNV · IGREJA CRISTÃ NOVA VIDA</div>
           <div style="font-size:8px;color:rgba(255,255,255,.8);letter-spacing:.8px;text-transform:uppercase">Jd. 25 de Agosto — Duque de Caxias, RJ</div>
