@@ -2452,33 +2452,72 @@ window.onload = startApp;
 
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
-const USERS = {
-  'admin':  { pass:'adm12325', name:'Administrador', role:'admin',    initials:'AD' },
-  'pastor': { pass:'adm12325', name:'Pr. Antonio Carlos', role:'admin', initials:'PA' },
+// Admin credentials managed via Supabase Auth — no passwords in source code
+// Email metadata maps: admin@icnv.com → Administrador, pastor@icnv.com → Pr. Antonio Carlos
+// Emails internos — não precisam ser domínios reais
+// Cadastre no Supabase Auth exatamente esses emails
+const ADMIN_EMAIL_MAP = {
+  'admin@icnv.local':  { name:'Administrador',     role:'admin', initials:'AD' },
+  'pastor@icnv.local': { name:'Pr. Antonio Carlos', role:'admin', initials:'PA' },
 };
+// Permite login pelo apelido (admin, pastor) OU pelo email completo
+const ADMIN_ALIAS = {
+  'admin':  'admin@icnv.local',
+  'pastor': 'pastor@icnv.local',
+};;
 
 let currentUser = null;
 
 async function doLogin() {
-  const u = document.getElementById('login-user').value.trim().toLowerCase();
-  const p = document.getElementById('login-pass').value;
-  const btn = document.querySelector('.login-btn');
+  const input = document.getElementById('login-user').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-pass').value;
+  const btn   = document.querySelector('.login-btn');
+  const errEl = document.getElementById('login-err');
+  const showErr = (msg) => {
+    errEl.textContent = msg || 'Usuário ou senha incorretos.';
+    errEl.style.display = 'block';
+    setTimeout(() => errEl.style.display = 'none', 4000);
+  };
   if (btn) { btn.disabled = true; btn.textContent = 'Verificando...'; }
 
   try {
-    // 1) Check admin/staff users first (no Supabase needed)
-    const user = USERS[u];
-    if (user && user.pass === p) {
-      loginSuccess(u, user);
-      return;
+    // ── 1) Supabase Auth — admin / pastor login (email + senha) ──
+    // Aceita email completo OU apelido (admin, pastor)
+    // Resolve apelido → email (admin → admin@icnv.local)
+    // Ou aceita email completo digitado diretamente
+    const emailInput = input.includes('@') ? input : (ADMIN_ALIAS[input] || null);
+
+    if (emailInput && ADMIN_EMAIL_MAP[emailInput]) {
+      // Call Supabase Auth
+      const authRes = await fetch(SUPA_URL + '/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: emailInput, password: pass }),
+      });
+      if (authRes.ok) {
+        const authData = await authRes.json();
+        const profile = ADMIN_EMAIL_MAP[emailInput];
+        // Store token in memory (not localStorage for security)
+        window._authToken = authData.access_token;
+        loginSuccess(emailInput, profile);
+        return;
+      } else {
+        const errBody = await authRes.json().catch(() => ({}));
+        showErr(errBody.error_description === 'Invalid login credentials'
+          ? 'Senha incorreta.' : 'Erro de autenticação.');
+        return;
+      }
     }
 
-    // 2) Query Supabase directly for registered members
+    // ── 2) Member login — query members table ─────────────────────
     try {
-      const rows = await sbSelect('members', 'login_user=eq.' + encodeURIComponent(u) + '&limit=1');
+      const rows = await sbSelect('members',
+        'login_user=eq.' + encodeURIComponent(input) + '&limit=1');
       const data = rows && rows[0];
-      if (data && data.login_pass === p) {
-        // Map Supabase row → member object
+      if (data && data.login_pass === pass) {
         const member = {
           id: data.id, nome: data.nome, nasc: data.nasc,
           tel: data.tel, email: data.email, end: data.end_logradouro,
@@ -2494,11 +2533,9 @@ async function doLogin() {
         openMemberPortal(member);
         return;
       }
-    } catch(loginErr) {
-      console.warn('Supabase login query failed, checking cache:', loginErr.message);
-      // Fallback: check local cache
-      const db = getDB();
-      const rm = (db.members||[]).find(m => m.loginUser === u && m.loginPass === p);
+    } catch(memberErr) {
+      console.warn('Member login query failed, checking cache:', memberErr.message);
+      const rm = (getDB().members||[]).find(m => m.loginUser===input && m.loginPass===pass);
       if (rm) {
         document.getElementById('login-screen').style.display = 'none';
         openMemberPortal(rm);
@@ -2506,16 +2543,12 @@ async function doLogin() {
       }
     }
 
-    // 3) Nothing matched — show error
-    const err = document.getElementById('login-err');
-    err.style.display = 'block';
-    setTimeout(() => err.style.display = 'none', 3000);
+    // ── 3) Nothing matched ────────────────────────────────────────
+    showErr('Usuário ou senha incorretos.');
 
   } catch(e) {
-    console.error('Login error:', e);
-    const err = document.getElementById('login-err');
-    err.style.display = 'block';
-    setTimeout(() => err.style.display = 'none', 3000);
+    console.error('Erro de login:', e);
+    showErr('Erro ao conectar. Tente novamente.');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Entrar no Sistema'; }
   }
