@@ -2454,17 +2454,8 @@ window.onload = startApp;
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 // Admin credentials managed via Supabase Auth — no passwords in source code
 // Email metadata maps: admin@icnv.com → Administrador, pastor@icnv.com → Pr. Antonio Carlos
-// Emails internos — não precisam ser domínios reais
-// Cadastre no Supabase Auth exatamente esses emails
-const ADMIN_EMAIL_MAP = {
-  'admin@icnv.local':  { name:'Administrador',     role:'admin', initials:'AD' },
-  'pastor@icnv.local': { name:'Pr. Antonio Carlos', role:'admin', initials:'PA' },
-};
-// Permite login pelo apelido (admin, pastor) OU pelo email completo
-const ADMIN_ALIAS = {
-  'admin':  'admin@icnv.local',
-  'pastor': 'pastor@icnv.local',
-};;
+// Admins são buscados da tabela 'admins' no Supabase
+// Nenhuma senha fica armazenada no HTML;
 
 let currentUser = null;
 
@@ -2481,41 +2472,27 @@ async function doLogin() {
   if (btn) { btn.disabled = true; btn.textContent = 'Verificando...'; }
 
   try {
-    // ── 1) Supabase Auth — admin / pastor login (email + senha) ──
-    // Aceita email completo OU apelido (admin, pastor)
-    // Resolve apelido → email (admin → admin@icnv.local)
-    // Ou aceita email completo digitado diretamente
-    const emailInput = input.includes('@') ? input : (ADMIN_ALIAS[input] || null);
-
-    if (emailInput && ADMIN_EMAIL_MAP[emailInput]) {
-      // Call Supabase Auth
-      const authRes = await fetch(SUPA_URL + '/auth/v1/token?grant_type=password', {
-        method: 'POST',
-        headers: {
-          'apikey': SUPA_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: emailInput, password: pass }),
-      });
-      if (authRes.ok) {
-        const authData = await authRes.json();
-        const profile = ADMIN_EMAIL_MAP[emailInput];
-        // Store token in memory (not localStorage for security)
-        window._authToken = authData.access_token;
-        loginSuccess(emailInput, profile);
-        return;
-      } else {
-        const errBody = await authRes.json().catch(() => ({}));
-        showErr(errBody.error_description === 'Invalid login credentials'
-          ? 'Senha incorreta.' : 'Erro de autenticação.');
+    // ── 1) Admin login — tabela 'admins' no Supabase ─────────────
+    try {
+      const rows = await sbFetch('GET','admins',null,
+        'username=eq.'+encodeURIComponent(input)+'&limit=1');
+      const admin = rows && rows[0];
+      if (admin && admin.senha === pass) {
+        loginSuccess(admin.username, {
+          name:     admin.nome     || admin.username,
+          role:     admin.role     || 'admin',
+          initials: admin.iniciais || admin.username.slice(0,2).toUpperCase(),
+        });
         return;
       }
+    } catch(adminErr) {
+      console.warn('Admin query:', adminErr.message);
     }
 
-    // ── 2) Member login — query members table ─────────────────────
+    // ── 2) Member login — tabela 'members' no Supabase ───────────
     try {
       const rows = await sbSelect('members',
-        'login_user=eq.' + encodeURIComponent(input) + '&limit=1');
+        'login_user=eq.'+encodeURIComponent(input)+'&limit=1');
       const data = rows && rows[0];
       if (data && data.login_pass === pass) {
         const member = {
@@ -2527,14 +2504,15 @@ async function doLogin() {
           loginUser: data.login_user, loginPass: data.login_pass,
           lgpdConsent: data.lgpd_consent, cardStatus: data.card_status,
           signatureData: data.signature_data, signedAt: data.signed_at,
-          registeredAt: data.registered_at
+          registeredAt: data.registered_at,
         };
         document.getElementById('login-screen').style.display = 'none';
         openMemberPortal(member);
         return;
       }
     } catch(memberErr) {
-      console.warn('Member login query failed, checking cache:', memberErr.message);
+      console.warn('Member query:', memberErr.message);
+      // Fallback: cache local
       const rm = (getDB().members||[]).find(m => m.loginUser===input && m.loginPass===pass);
       if (rm) {
         document.getElementById('login-screen').style.display = 'none';
@@ -2543,7 +2521,7 @@ async function doLogin() {
       }
     }
 
-    // ── 3) Nothing matched ────────────────────────────────────────
+    // ── 3) Nada encontrado ────────────────────────────────────────
     showErr('Usuário ou senha incorretos.');
 
   } catch(e) {
