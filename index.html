@@ -2076,7 +2076,7 @@ async function processAndUploadFoto(src) {
   const btn = document.getElementById('portal-foto-btn-inner');
   try {
     // 1. Autocrop center square + compress to max 400x400 JPEG
-    const base64 = await autocropSquare(src, 400, 0.82);
+    const base64 = await autocropSquare(src, 1200, 0.92);
 
     // 2. Update UI immediately with local preview
     portalMember.foto = base64;
