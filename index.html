@@ -2058,81 +2058,107 @@ async function repairFotos() {
 
 // ─── CROP FOTO DO MEMBRO ─────────────────────────────────────
 let _cropImg = null, _cropScale = 1, _cropX = 0, _cropY = 0;
-let _cropDragging = false, _cropLastX = 0, _cropLastY = 0;
-const CROP_SIZE = 320; // output square size in px
+let _cropDragging = false, _cropLast = {x:0,y:0};
+const CROP_OUT = 400; // output px
 
 function openCropFoto() {
-  document.getElementById('portal-foto-input').click();
+  // Use the static file input in the crop modal
+  const inp = document.getElementById('portal-foto-input-static');
+  if (inp) inp.click();
 }
 
 function onPortalFotoSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => initCrop(ev.target.result);
-  reader.readAsDataURL(file);
   e.target.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    // Small delay so modal display:flex is computed before measuring
+    document.getElementById('crop-modal').style.display = 'flex';
+    setTimeout(() => initCrop(ev.target.result), 80);
+  };
+  reader.readAsDataURL(file);
 }
 
 function initCrop(src) {
-  const modal = document.getElementById('crop-modal');
-  const canvas = document.getElementById('crop-canvas');
-  const wrap = document.getElementById('crop-wrap');
-  modal.style.display = 'flex';
   _cropImg = new Image();
   _cropImg.onload = () => {
-    // Fit image to wrap size initially
-    const wrapW = wrap.clientWidth;
+    const wrap = document.getElementById('crop-wrap');
+    const wrapW = wrap.clientWidth || 280;
+    // Scale image to fill the square
     const ratio = Math.max(wrapW / _cropImg.width, wrapW / _cropImg.height);
     _cropScale = ratio;
     _cropX = (wrapW - _cropImg.width * ratio) / 2;
     _cropY = (wrapW - _cropImg.height * ratio) / 2;
-    document.getElementById('crop-zoom').value = _cropScale;
-    document.getElementById('crop-zoom').min = ratio * 0.5;
-    document.getElementById('crop-zoom').max = ratio * 4;
-    document.getElementById('crop-zoom').step = ratio * 0.01;
+    const zoomEl = document.getElementById('crop-zoom-range');
+    if (zoomEl) {
+      zoomEl.min = ratio * 0.5;
+      zoomEl.max = ratio * 4;
+      zoomEl.step = ratio * 0.005;
+      zoomEl.value = ratio;
+    }
     drawCrop();
+    setupCropEvents();
   };
   _cropImg.src = src;
+}
 
-  // Mouse events
-  const cv = canvas;
-  wrap.onmousedown = wrap.ontouchstart = (ev) => {
-    _cropDragging = true;
-    const p = ev.touches ? ev.touches[0] : ev;
-    _cropLastX = p.clientX; _cropLastY = p.clientY;
-    ev.preventDefault();
-  };
-  window.onmousemove = window.ontouchmove = (ev) => {
+function setupCropEvents() {
+  const wrap = document.getElementById('crop-wrap');
+  if (!wrap) return;
+  // Remove old listeners by cloning
+  const newWrap = wrap.cloneNode(true);
+  wrap.parentNode.replaceChild(newWrap, wrap);
+
+  const getPos = e => e.touches ? {x: e.touches[0].clientX, y: e.touches[0].clientY}
+                                : {x: e.clientX, y: e.clientY};
+
+  newWrap.addEventListener('mousedown', e => {
+    _cropDragging = true; _cropLast = getPos(e); e.preventDefault();
+  });
+  newWrap.addEventListener('touchstart', e => {
+    _cropDragging = true; _cropLast = getPos(e); e.preventDefault();
+  }, {passive: false});
+
+  const onMove = e => {
     if (!_cropDragging) return;
-    const p = ev.touches ? ev.touches[0] : ev;
-    _cropX += p.clientX - _cropLastX;
-    _cropY += p.clientY - _cropLastY;
-    _cropLastX = p.clientX; _cropLastY = p.clientY;
-    drawCrop(); ev.preventDefault();
+    const pos = getPos(e);
+    _cropX += pos.x - _cropLast.x;
+    _cropY += pos.y - _cropLast.y;
+    _cropLast = pos;
+    drawCrop();
+    e.preventDefault();
   };
-  window.onmouseup = window.ontouchend = () => { _cropDragging = false; };
+  newWrap.addEventListener('mousemove', onMove);
+  newWrap.addEventListener('touchmove', onMove, {passive: false});
+
+  const onEnd = () => { _cropDragging = false; };
+  newWrap.addEventListener('mouseup', onEnd);
+  newWrap.addEventListener('touchend', onEnd);
 }
 
 function drawCrop() {
   const wrap = document.getElementById('crop-wrap');
   const canvas = document.getElementById('crop-canvas');
-  const size = wrap.clientWidth;
-  canvas.width = size; canvas.height = size;
-  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  if (!wrap || !canvas || !_cropImg) return;
+  const size = wrap.clientWidth || 280;
+  canvas.width = size;
+  canvas.height = size;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  ctx.drawImage(_cropImg, _cropX, _cropY, _cropImg.width * _cropScale, _cropImg.height * _cropScale);
+  ctx.drawImage(_cropImg, _cropX, _cropY,
+    _cropImg.width * _cropScale,
+    _cropImg.height * _cropScale);
 }
 
 function cropSetZoom(val) {
   const wrap = document.getElementById('crop-wrap');
-  const size = wrap.clientWidth;
+  const size = (wrap?.clientWidth) || 280;
   const cx = size / 2, cy = size / 2;
-  // Zoom centered on wrap center
-  const oldScale = _cropScale;
+  const ratio = parseFloat(val) / _cropScale;
   _cropScale = parseFloat(val);
-  const ratio = _cropScale / oldScale;
   _cropX = cx - (cx - _cropX) * ratio;
   _cropY = cy - (cy - _cropY) * ratio;
   drawCrop();
@@ -2145,31 +2171,33 @@ function cropCancel() {
 
 async function cropConfirm() {
   if (!_cropImg || !portalMember) return;
-  const btn = document.querySelector('#crop-modal .crop-actions button:last-child');
-  btn.disabled = true; btn.textContent = '⏳ Salvando...';
-
-  // Render final square crop to output canvas
-  const out = document.createElement('canvas');
-  out.width = CROP_SIZE; out.height = CROP_SIZE;
-  const ctx = out.getContext('2d');
-  const wrap = document.getElementById('crop-wrap');
-  const displaySize = wrap.clientWidth;
-  const scale = CROP_SIZE / displaySize;
-  ctx.drawImage(_cropImg,
-    _cropX * scale, _cropY * scale,
-    _cropImg.width * _cropScale * scale,
-    _cropImg.height * _cropScale * scale
-  );
-
-  const base64 = out.toDataURL('image/jpeg', 0.85);
+  const btn = document.getElementById('crop-confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando...'; }
 
   try {
-    // Upload to Supabase Storage
-    const url = await uploadFotoToStorage(base64, portalMember.id);
-    if (!url) throw new Error('Upload retornou vazio');
+    const wrap = document.getElementById('crop-wrap');
+    const displaySize = wrap.clientWidth || 280;
 
-    // Update Supabase
-    await sbFetch('PATCH', 'members', { foto: url }, 'id=eq.' + portalMember.id);
+    // Render crop to square output canvas
+    const out = document.createElement('canvas');
+    out.width = CROP_OUT; out.height = CROP_OUT;
+    const ctx = out.getContext('2d');
+    // Convert display coords to image source coords
+    const sc = CROP_OUT / displaySize;
+    ctx.drawImage(_cropImg,
+      _cropX * sc, _cropY * sc,
+      _cropImg.width * _cropScale * sc,
+      _cropImg.height * _cropScale * sc);
+
+    const base64 = out.toDataURL('image/jpeg', 0.88);
+
+    // Upload to Supabase Storage
+    toast('⏳ Enviando foto...', 'info');
+    const url = await uploadFotoToStorage(base64, portalMember.id);
+    if (!url) throw new Error('Falha no upload');
+
+    // Update Supabase column
+    await sbFetch('PATCH', 'members', {foto: url}, 'id=eq.' + portalMember.id);
 
     // Update local state
     portalMember.foto = url;
@@ -2178,23 +2206,23 @@ async function cropConfirm() {
     const mi = db.members.findIndex(x => x.id === portalMember.id);
     if (mi >= 0) { db.members[mi].foto = url; saveDB(db); }
 
+    // Update header photo
+    const photoWrap = document.getElementById('portal-member-photo-wrap');
+    if (photoWrap) photoWrap.innerHTML =
+      `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--orange);display:block;margin:0 auto">`;
+
     document.getElementById('crop-modal').style.display = 'none';
     _cropImg = null;
-
-    // Update header avatar
-    const photoWrap = document.getElementById('portal-member-photo-wrap');
-    if (photoWrap) photoWrap.innerHTML = `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--orange);display:block;margin:0 auto">`;
-
-    // Re-render card
     renderPortalCard();
-    toast('✅ Foto atualizada!', 'success');
-  } catch(e) {
-    console.error('cropConfirm:', e);
-    toast('Erro ao salvar foto: ' + e.message, 'error');
+    toast('✅ Foto atualizada com sucesso!', 'success');
+  } catch(err) {
+    console.error('cropConfirm:', err);
+    toast('Erro: ' + err.message, 'error');
   } finally {
-    btn.disabled = false; btn.textContent = '✅ Confirmar';
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar'; }
   }
 }
+
 function renderPage(n){
   if(n==='dashboard')renderDashboard();
   else if(n==='members'){ renderMembers(); updateSigBadge(); }
@@ -3728,8 +3756,7 @@ async function renderPortalCard() {
     <button onclick="openCropFoto()" style="max-width:440px;width:100%;margin-top:8px;padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark)">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       Alterar Foto da Carteirinha
-    </button>
-    <input type="file" id="portal-foto-input" accept="image/*" style="display:none" onchange="onPortalFotoSelect(event)">`;
+    </button>`;
   }
 }
 
@@ -4524,13 +4551,14 @@ async function doExportCard(m, format) {
     </div>
     <div class="crop-zoom">
       <label>🔍 Zoom</label>
-      <input type="range" id="crop-zoom" min="0.5" max="3" step="0.01" value="1" oninput="cropSetZoom(this.value)">
+      <input type="range" id="crop-zoom-range" min="0.5" max="3" step="0.01" value="1" oninput="cropSetZoom(this.value)">
     </div>
-    <div style="font-size:12px;color:var(--gray);text-align:center">Arraste para posicionar • Use o zoom para ajustar</div>
+    <div style="font-size:12px;color:var(--gray);text-align:center;padding:0 4px">Arraste para posicionar · Zoom para ajustar</div>
     <div class="crop-actions">
       <button onclick="cropCancel()" style="background:#f3f4f6;color:var(--dark)">Cancelar</button>
-      <button onclick="cropConfirm()" style="background:var(--orange);color:white">✅ Confirmar</button>
+      <button id="crop-confirm-btn" onclick="cropConfirm()" style="background:var(--orange);color:white">✅ Confirmar</button>
     </div>
+    <input type="file" id="portal-foto-input-static" accept="image/*" style="display:none" onchange="onPortalFotoSelect(event)">
   </div>
 </div>
 
