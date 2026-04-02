@@ -135,7 +135,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 
 /* ─── MEMBER CARD ─── */
 .member-card-container{background:var(--black);border-radius:var(--radius-lg);padding:2px;max-width:440px;margin:0 auto}
-.member-card{background:linear-gradient(145deg,var(--dark) 0%,#1f1f1f 100%);border-radius:18px;padding:28px;position:relative;overflow:hidden;color:white}
+.member-card{-webkit-touch-callout:none;background:linear-gradient(145deg,var(--dark) 0%,#1f1f1f 100%);border-radius:18px;padding:28px;position:relative;overflow:hidden;color:white}
 .member-card::before{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(242,142,67,.2) 0%,transparent 70%);border-radius:50%}
 .card-church-logo{display:flex;align-items:center;gap:10px;margin-bottom:24px}
 .card-cross{width:32px;height:32px;background:var(--orange);border-radius:6px;display:flex;align-items:center;justify-content:center}
@@ -479,7 +479,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 /* ─── CARD BACK (Verso) ─── */
 .card-back{background:linear-gradient(145deg,#181818,#1e1e1e);border-radius:18px;padding:22px 24px;color:white;position:relative;overflow:hidden;margin-top:8px}
 .card-back::before{content:'';position:absolute;top:-40px;left:-40px;width:160px;height:160px;background:radial-gradient(circle,rgba(242,142,67,.1) 0%,transparent 70%);border-radius:50%}
-.sig-image-display{max-width:180px;height:60px;object-fit:contain;filter:invert(1) brightness(2);opacity:.85;margin:8px 0}
+.sig-image-display{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;pointer-events:none;max-width:180px;height:60px;object-fit:contain;filter:invert(1) brightness(2);opacity:.85;margin:8px 0}
 
 /* ─── REGISTER LINK on login ─── */
 .login-register-link{margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06);font-size:13px;color:rgba(255,255,255,.4);text-align:center}
@@ -1400,6 +1400,17 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
     <div class="portal-section active" id="portal-tab-carteirinha">
       <div id="portal-card-status"></div>
       <div id="portal-card-display"></div>
+      <!-- STATIC FOTO UPLOAD — always in DOM, shown/hidden by JS -->
+      <div id="portal-foto-btn-wrap" style="display:none;max-width:440px;width:100%;margin-top:8px">
+        <div style="position:relative;width:100%">
+          <div style="padding:13px 16px;background:white;border:1.5px solid var(--orange);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--orange)">
+            📷 Alterar Foto da Carteirinha
+          </div>
+          <input type="file" accept="image/*" capture="user"
+            onchange="onPortalFotoSelect(event)"
+            style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">
+        </div>
+      </div>
     </div>
 
     <!-- AGENDA TAB -->
@@ -3676,6 +3687,8 @@ async function renderPortalCard() {
 
   const statusEl = document.getElementById('portal-card-status');
   const displayEl = document.getElementById('portal-card-display');
+  const fotoBtnWrap = document.getElementById('portal-foto-btn-wrap');
+  if (fotoBtnWrap) fotoBtnWrap.style.display = 'block'; // always show
   let m = getDB().members.find(x => x.id === portalMember.id) || portalMember;
 
   // Enrich with foto — check memory cache first, then Supabase
@@ -3715,16 +3728,7 @@ async function renderPortalCard() {
     displayEl.innerHTML += `<button class="card-download-btn" disabled style="margin-top:16px;max-width:440px;display:flex;width:100%">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Aguardando assinatura...
-    </button>
-    <div style="position:relative;max-width:440px;width:100%;margin-top:8px">
-      <div style="padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark);pointer-events:none">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        📷 Alterar Foto da Carteirinha
-      </div>
-      <input type="file" accept="image/*" onchange="onPortalFotoSelect(event)"
-        style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px">
-    </div>
-    <input type="file" id="portal-foto-input" accept="image/*" style="display:none" onchange="onPortalFotoSelect(event)">`;
+    </button>`;
   } else {
     statusEl.innerHTML = `
       <div class="card-status-banner approved">
@@ -3747,15 +3751,7 @@ async function renderPortalCard() {
     <button class="card-download-btn" onclick="downloadCardPNG('${m.id}')" style="max-width:440px;display:flex;width:100%;margin-top:16px">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Baixar Carteirinha em PNG
-    </button>
-    <div style="position:relative;max-width:440px;width:100%;margin-top:8px">
-      <div style="padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark);pointer-events:none">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        📷 Alterar Foto da Carteirinha
-      </div>
-      <input type="file" accept="image/*" onchange="onPortalFotoSelect(event)"
-        style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px">
-    </div>`;
+    </button>`;
   }
 }
 
