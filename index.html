@@ -656,7 +656,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap">
         <div class="search-bar"><span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><input type="text" id="member-search" placeholder="Buscar membro..." oninput="filterMembers()"></div>
       </div>
-      <div class="card"><div class="table-wrap"><table><thead><tr><th>Membro</th><th>Contato</th><th>Estado Civil</th><th>Batismo</th><th>Pastor</th><th style="text-align:center">Ações</th></tr></thead><tbody id="members-tbody"></tbody></table></div></div>
+      <div class="card"><div class="table-wrap"><table><thead><tr><th>Membro</th><th>Contato</th><th>Estado Civil</th><th>Batismo</th><th>Batizou por</th><th style="text-align:center">Ações</th></tr></thead><tbody id="members-tbody"></tbody></table></div></div>
 
       <!-- PENDING SIGNATURES PANEL -->
       <div id="sig-pending-panel" style="margin-top:24px">
@@ -1032,7 +1032,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
       <div class="section-title">Dados Eclesiásticos</div>
       <div class="form-grid">
         <div class="field"><label>Data de Batismo</label><input type="date" id="f-batismo"></div>
-        <div class="field"><label>Pastor Responsável</label><input type="text" id="f-pr" placeholder="Nome do pastor"></div>
+        <div class="field"><label>Pastor que Batizou</label><input type="text" id="f-pr" placeholder="Ex: Pr. Ricardo Bruno"></div>
         <div class="field form-full"><div class="check-group"><input type="checkbox" id="f-outra" onchange="toggleOutraIgreja()"><label for="f-outra">Já foi membro de outra igreja?</label></div></div>
         <div class="field" id="field-qual" style="display:none"><label>Qual Igreja?</label><input type="text" id="f-qual"></div>
         <div class="field" id="field-contato" style="display:none"><label>Contato da Igreja</label><input type="text" id="f-contato-ig"></div>
@@ -1594,7 +1594,16 @@ const DB = {
         }
       });
       if (changed) {
+        // Always update visible UI wherever photos are displayed
         if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
+        // Update portal card
+        if (typeof renderPortalCard === 'function' && portalMember) renderPortalCard();
+        // Update sig pending list (shows member avatars)
+        if (currentPage === 'members' && typeof updateSigBadge === 'function') updateSigBadge();
+      }
+      // Even if nothing changed in cache, update UI with whatever is in _fotoStore
+      if (rows && rows.length) {
+        if (currentPage === 'members') renderMembers();
         if (typeof renderPortalCard === 'function' && portalMember) renderPortalCard();
       }
     } catch(e) { console.warn('Fotos - erro ao buscar:', e.message); }
@@ -2057,7 +2066,7 @@ function deleteMember(id){if(!confirm('Excluir membro?'))return;const db=getDB()
 function viewMember(id){
   const db=getDB();const m=db.members.find(x=>x.id===id);if(!m)return;
   const body=document.getElementById('detail-body');
-  body.innerHTML=`<div class="member-card-container" style="margin-bottom:24px"><div class="member-card"><div class="card-church-logo"><div class="card-cross" style="background:transparent;padding:0"><img src="" data-logo="1" style="width:32px;height:auto;filter:brightness(10)"></div><div><div class="card-church-name">Igreja Cristã Nova Vida</div><div class="card-church-sub">Cartão de Membro</div></div></div><div class="card-avatar-row"><div class="card-avatar" style="background:${avatarColor(m.nome)}">${initials(m.nome)}</div><div><div class="card-member-name">${m.nome}</div><div class="card-member-id">Membro Nº ${m.id}</div></div></div><div class="card-details"><div class="card-detail-item"><div class="label">Nascimento</div><div class="value">${fmtDate(m.nasc)}</div></div><div class="card-detail-item"><div class="label">Batismo</div><div class="value">${fmtDate(m.batismo)||'—'}</div></div><div class="card-detail-item"><div class="label">Estado Civil</div><div class="value">${m.civil||'—'}</div></div><div class="card-detail-item"><div class="label">Telefone</div><div class="value">${m.tel||'—'}</div></div></div><div class="card-footer"><div class="card-pastor">Pastor Responsável<strong>${m.pr||'—'}</strong></div><div class="card-valid">Válido<br>${new Date().getFullYear()}</div></div></div></div>
+  body.innerHTML=`<div class="member-card-container" style="margin-bottom:24px"><div class="member-card"><div class="card-church-logo"><div class="card-cross" style="background:transparent;padding:0"><img src="" data-logo="1" style="width:32px;height:auto;filter:brightness(10)"></div><div><div class="card-church-name">Igreja Cristã Nova Vida</div><div class="card-church-sub">Cartão de Membro</div></div></div><div class="card-avatar-row"><div class="card-avatar" style="background:${avatarColor(m.nome)}">${initials(m.nome)}</div><div><div class="card-member-name">${m.nome}</div><div class="card-member-id">Membro Nº ${m.id}</div></div></div><div class="card-details"><div class="card-detail-item"><div class="label">Nascimento</div><div class="value">${fmtDate(m.nasc)}</div></div><div class="card-detail-item"><div class="label">Batismo</div><div class="value">${fmtDate(m.batismo)||'—'}</div></div><div class="card-detail-item"><div class="label">Estado Civil</div><div class="value">${m.civil||'—'}</div></div><div class="card-detail-item"><div class="label">Telefone</div><div class="value">${m.tel||'—'}</div></div></div><div class="card-footer"><div class="card-pastor">Pastor que Batizou<strong>Pr. Antonio Carlos</strong></div><div class="card-valid">Válido<br>${new Date().getFullYear()}</div></div></div></div>
   <div class="section-title" style="margin-bottom:14px">Informações Completas</div>
   <div class="detail-grid">
     <div class="detail-item"><div class="d-label">Nome Completo</div><div class="d-value">${m.nome}</div></div>
@@ -2069,7 +2078,7 @@ function viewMember(id){
     <div class="detail-item"><div class="d-label">Cônjuge</div><div class="d-value">${m.conj||'—'}</div></div>
     <div class="detail-item"><div class="d-label">Filhos</div><div class="d-value">${m.filhos||0}</div></div>
     <div class="detail-item"><div class="d-label">Batismo</div><div class="d-value">${fmtDate(m.batismo)||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">Pastor</div><div class="d-value">${m.pr||'—'}</div></div>
+    <div class="detail-item"><div class="d-label">Batizou por</div><div class="d-value">${m.pr||'—'}</div></div>
     <div class="detail-item"><div class="d-label">Consentimento LGPD</div><div class="d-value" style="color:${m.lgpdConsent?'#16a34a':'#dc2626'}">${m.lgpdConsent?'✓ Consentido':'✗ Pendente'}</div></div>
     ${m.outra?`<div class="detail-item"><div class="d-label">Igreja Anterior</div><div class="d-value">${m.qual||'—'}</div></div>`:'' }
   </div>`;
@@ -2545,11 +2554,12 @@ async function loginSuccess(username, user) {
   try { await DB.syncCacheEvents();  } catch(e) { console.warn('events:', e.message);  }
   try { await DB.syncCachePrayers(); } catch(e) { console.warn('prayers:', e.message); }
   try { await DB.syncCacheScales();  } catch(e) { console.warn('scales:', e.message);  }
+  // Fetch photos BEFORE rendering so cards show photos on first load
+  try { await DB.fetchAllFotos(); } catch(e) { console.warn('fotos:', e.message); }
   hideLoadingOverlay();
   renderPage('dashboard');
   updateBadges();
   updateSigBadge();
-  DB.fetchAllFotos();
   // Load musicians for scale dropdown
   loadMusicians();
 }
@@ -2674,8 +2684,8 @@ function buildMemberCard(m, forPrint = false) {
         <!-- PASTOR + SIGNATURE -->
         <div style="display:flex;align-items:flex-start;gap:14px">
           <div style="flex:1">
-            <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Pastor Responsável</div>
-            <div style="font-size:13px;color:#111;font-weight:700">${m.pr||'Pr. Antonio Carlos'}</div>
+            <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Pastor que Batizou</div>
+            <div style="font-size:13px;color:#111;font-weight:700">Pr. Antonio Carlos</div>
           </div>
           <div style="width:160px;flex-shrink:0">
             <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;text-align:center">Assinatura</div>
@@ -2725,7 +2735,7 @@ function viewMember(id) {
     <div class="detail-item"><div class="d-label">Filhos</div><div class="d-value">${m.filhos||0}</div></div>
     <div class="detail-item"><div class="d-label">Batismo</div><div class="d-value">${fmtDate(m.batismo)||'—'}</div></div>
     <div class="detail-item"><div class="d-label">Filiação</div><div class="d-value">${m.fil||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">Pastor</div><div class="d-value">${m.pr||'—'}</div></div>
+    <div class="detail-item"><div class="d-label">Batizou por</div><div class="d-value">${m.pr||'—'}</div></div>
     <div class="detail-item"><div class="d-label">Consentimento LGPD</div><div class="d-value" style="color:${m.lgpdConsent?'#16a34a':'#dc2626'}">${m.lgpdConsent?'✓ Consentido':'✗ Pendente'}</div></div>
     ${m.outra ? `<div class="detail-item"><div class="d-label">Igreja Anterior</div><div class="d-value">${m.qual||'—'}</div></div>` : ''}
   </div>`;
@@ -3183,7 +3193,12 @@ async function uploadFotoToStorage(base64DataUrl, memberId) {
     },
     body: blob,
   });
-  if (!res.ok) throw new Error('Storage upload failed: ' + res.status);
+  if (!res.ok) {
+    const errText = await res.text().catch(()=>'');
+    console.warn('Storage upload failed:', res.status, errText);
+    // Fallback: return original base64 so it gets saved directly in members.foto
+    return base64DataUrl;
+  }
   // Return public URL
   return SUPA_URL + '/storage/v1/object/public/member-fotos/' + filename;
 }
