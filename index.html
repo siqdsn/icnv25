@@ -2101,7 +2101,16 @@ async function processAndUploadFoto(src) {
     updatePortalAvatar(finalFoto);
     renderPortalCard();
 
-    toast('✅ Foto atualizada!', 'success');
+    toast('✅ Foto atualizada! Recarregando...', 'success');
+
+    // Salva sessão e recarrega para garantir atualização completa
+    sessionStorage.setItem('_autoLogin', JSON.stringify({
+      loginUser: portalMember.loginUser || '',
+      loginPass: portalMember.loginPass || '',
+      memberId:  portalMember.id,
+    }));
+    setTimeout(() => location.reload(), 1500);
+
   } catch(err) {
     console.error('uploadFoto:', err);
     toast('Erro ao enviar foto: ' + err.message, 'error');
@@ -2633,6 +2642,47 @@ function checkURLParams(){
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function startApp() {
+  // Auto-login after foto upload refresh
+  const _al = sessionStorage.getItem('_autoLogin');
+  if (_al) {
+    sessionStorage.removeItem('_autoLogin');
+    try {
+      const {loginUser, loginPass, memberId} = JSON.parse(_al);
+      // Find member in cache or Supabase and open portal
+      const db = getDB();
+      let m = db.members.find(x => x.id === memberId || x.loginUser === loginUser);
+      if (m) {
+        document.getElementById('login-screen').style.display = 'none';
+        // Fetch fresh member data with foto from Supabase
+        sbFetch('GET','members',null,'select=*&id=eq.'+memberId).then(rows => {
+          const fresh = rows && rows[0];
+          if (fresh) {
+            const fm = {
+              id:fresh.id, nome:fresh.nome, nasc:fresh.nasc, tel:fresh.tel,
+              email:fresh.email, end:fresh.end_logradouro, civil:fresh.civil,
+              filhos:fresh.filhos, conj:fresh.conj, fil:fresh.fil,
+              batismo:fresh.batismo, foto:fresh.foto, pr:fresh.pr,
+              outra:fresh.outra, qual:fresh.qual,
+              loginUser:fresh.login_user, loginPass:fresh.login_pass,
+              lgpdConsent:fresh.lgpd_consent, cardStatus:fresh.card_status,
+              signatureData:fresh.signature_data, signedAt:fresh.signed_at,
+              registeredAt:fresh.registered_at,
+            };
+            if (fm.foto) setFotoCache(fm.id, fm.foto);
+            openMemberPortal(fm);
+          } else {
+            openMemberPortal(m);
+          }
+        }).catch(() => openMemberPortal(m));
+        return;
+      }
+      // Fallback: pre-fill login form
+      if (loginUser) document.getElementById('login-user').value = loginUser;
+      if (loginPass) document.getElementById('login-pass').value = loginPass;
+      document.querySelector('.login-btn')?.click();
+      return;
+    } catch(e) { console.warn('autoLogin:', e.message); }
+  }
   // Set current month in reading plan selects
   const curMes = new Date().getMonth() + 1;
   ['leitura-mes-select','rp-mes'].forEach(id => {
