@@ -683,7 +683,6 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
     <!-- ═══ MEMBERS ════════════════════════════════════ -->
     <div class="page" id="page-members">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="repairFotos()" title="Migrar fotos antigas para Supabase Storage" style="font-size:12px;color:var(--gray)">🔧 Reparar Fotos</button>
         <div class="search-bar"><span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><input type="text" id="member-search" placeholder="Buscar membro..." oninput="filterMembers()"></div>
       </div>
       <div class="card"><div class="table-wrap"><table><thead><tr><th>Membro</th><th>Contato</th><th>Estado Civil</th><th>Batismo</th><th>Batizou por</th><th style="text-align:center">Ações</th></tr></thead><tbody id="members-tbody"></tbody></table></div></div>
@@ -2001,6 +2000,31 @@ function renderMusiciansAdmin() {
 
 
 // ─── REPARAR FOTOS: migra base64 do banco para Supabase Storage ──────────────
+
+// Silently migrate base64 fotos to Storage on admin login
+async function autoMigrateFotos() {
+  try {
+    const rows = await sbFetch('GET','members',null,'select=id,nome,foto&order=created_at.desc');
+    for (const r of rows||[]) {
+      if (!r.foto || !r.foto.startsWith('data:')) continue;
+      try {
+        const url = await uploadFotoToStorage(r.foto, r.id);
+        if (url && !url.startsWith('data:')) {
+          await sbFetch('PATCH','members',{foto:url},'id=eq.'+r.id);
+          setFotoCache(r.id, url);
+          // Update in memory
+          const db = getCache();
+          const m = db.members.find(x=>x.id===r.id);
+          if (m) { m.foto = url; }
+          setCache(db);
+          console.log('Foto migrada:', r.nome, '→', url);
+        }
+      } catch(e) { console.warn('migrate foto', r.nome, ':', e.message); }
+    }
+    // Re-render if on members page
+    if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
+  } catch(e) { console.warn('autoMigrateFotos:', e.message); }
+}
 async function repairFotos() {
   const btn = event?.target;
   if (btn) { btn.disabled=true; btn.textContent='⏳ Reparando...'; }
@@ -2633,6 +2657,8 @@ async function loginSuccess(username, user) {
   hideLoadingOverlay();
   // Fetch fotos synchronously so they're ready when admin opens Members page
   try { await DB.fetchAllFotos(); } catch(e) { console.warn('fotos:', e.message); }
+  // Auto-migrate any base64 fotos to Storage in background
+  if (user.role === 'admin') autoMigrateFotos();
   renderPage('dashboard');
   updateBadges();
   updateSigBadge();
