@@ -2058,168 +2058,159 @@ async function repairFotos() {
 
 // ─── CROP FOTO DO MEMBRO ─────────────────────────────────────
 let _cropImg = null, _cropScale = 1, _cropX = 0, _cropY = 0;
-let _cropDragging = false, _cropLast = {x:0,y:0};
-const CROP_OUT = 400; // output px
-
-function openCropFoto() {
-  // Fallback for desktop — on mobile the label handles it directly
-  const inp = document.getElementById('portal-foto-input-static');
-  if (inp) inp.click();
-}
+let _cropDragging = false, _cropLast = {x:0, y:0};
+let _cropPinchDist = 0;
+const CROP_OUT = 400;
 
 function onPortalFotoSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
   e.target.value = '';
   const reader = new FileReader();
-  reader.onload = ev => {
-    // Small delay so modal display:flex is computed before measuring
-    document.getElementById('crop-modal').style.display = 'flex';
-    setTimeout(() => initCrop(ev.target.result), 80);
-  };
+  reader.onload = ev => showCropModal(ev.target.result);
   reader.readAsDataURL(file);
 }
 
-function initCrop(src) {
-  _cropImg = new Image();
-  _cropImg.onload = () => {
-    const wrap = document.getElementById('crop-wrap');
-    const wrapW = wrap.clientWidth || 280;
-    // Scale image to fill the square
-    const ratio = Math.max(wrapW / _cropImg.width, wrapW / _cropImg.height);
-    _cropScale = ratio;
-    _cropX = (wrapW - _cropImg.width * ratio) / 2;
-    _cropY = (wrapW - _cropImg.height * ratio) / 2;
-    const zoomEl = document.getElementById('crop-zoom-range');
-    if (zoomEl) {
-      zoomEl.min = ratio * 0.5;
-      zoomEl.max = ratio * 4;
-      zoomEl.step = ratio * 0.005;
-      zoomEl.value = ratio;
-    }
-    drawCrop();
-    setupCropEvents();
-  };
-  _cropImg.src = src;
-}
-
-function setupCropEvents() {
-  const wrap = document.getElementById('crop-wrap');
-  if (!wrap) return;
-  // Remove old listeners by cloning
-  const newWrap = wrap.cloneNode(true);
-  wrap.parentNode.replaceChild(newWrap, wrap);
-
-  const getPos = e => e.touches ? {x: e.touches[0].clientX, y: e.touches[0].clientY}
-                                : {x: e.clientX, y: e.clientY};
-
-  newWrap.addEventListener('mousedown', e => {
-    _cropDragging = true; _cropLast = getPos(e); e.preventDefault();
-  });
-  newWrap.addEventListener('touchstart', e => {
-    _cropDragging = true; _cropLast = getPos(e); e.preventDefault();
-  }, {passive: false});
-
-  const onMove = e => {
-    if (!_cropDragging) return;
-    const pos = getPos(e);
-    _cropX += pos.x - _cropLast.x;
-    _cropY += pos.y - _cropLast.y;
-    _cropLast = pos;
-    drawCrop();
-    e.preventDefault();
-  };
-  newWrap.addEventListener('mousemove', onMove);
-  newWrap.addEventListener('touchmove', onMove, {passive: false});
-
-  const onEnd = () => { _cropDragging = false; };
-  newWrap.addEventListener('mouseup', onEnd);
-  newWrap.addEventListener('touchend', onEnd);
+function showCropModal(src) {
+  const modal = document.getElementById('crop-modal');
+  modal.style.display = 'flex';
+  // Wait for 2 animation frames so layout is fully computed on iOS
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    _cropImg = new Image();
+    _cropImg.onload = () => {
+      const wrap = document.getElementById('crop-wrap');
+      const size = wrap.getBoundingClientRect().width || wrap.offsetWidth || 300;
+      const ratio = Math.max(size / _cropImg.width, size / _cropImg.height);
+      _cropScale = ratio;
+      _cropX = (size - _cropImg.width * ratio) / 2;
+      _cropY = (size - _cropImg.height * ratio) / 2;
+      const zEl = document.getElementById('crop-zoom-range');
+      if (zEl) { zEl.min = ratio*0.5; zEl.max = ratio*4; zEl.step = ratio*0.01; zEl.value = ratio; }
+      drawCrop();
+      setupCropEvents();
+    };
+    _cropImg.src = src;
+  }));
 }
 
 function drawCrop() {
   const wrap = document.getElementById('crop-wrap');
   const canvas = document.getElementById('crop-canvas');
   if (!wrap || !canvas || !_cropImg) return;
-  const size = wrap.clientWidth || 280;
-  canvas.width = size;
-  canvas.height = size;
-  canvas.style.width = size + 'px';
-  canvas.style.height = size + 'px';
+  const size = wrap.getBoundingClientRect().width || wrap.offsetWidth || 300;
+  canvas.width = size; canvas.height = size;
+  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  ctx.drawImage(_cropImg, _cropX, _cropY,
-    _cropImg.width * _cropScale,
-    _cropImg.height * _cropScale);
+  ctx.drawImage(_cropImg, _cropX, _cropY, _cropImg.width * _cropScale, _cropImg.height * _cropScale);
+}
+
+function setupCropEvents() {
+  const wrap = document.getElementById('crop-wrap');
+  if (!wrap) return;
+  // Remove old listeners
+  const fresh = wrap.cloneNode(true);
+  wrap.parentNode.replaceChild(fresh, wrap);
+
+  const pt = e => e.touches ? {x: e.touches[0].clientX, y: e.touches[0].clientY} : {x: e.clientX, y: e.clientY};
+
+  // Drag
+  fresh.addEventListener('mousedown',  e => { _cropDragging=true; _cropLast=pt(e); e.preventDefault(); });
+  fresh.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) { _cropPinchDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); }
+    else { _cropDragging=true; _cropLast=pt(e); }
+    e.preventDefault();
+  }, {passive:false});
+
+  fresh.addEventListener('mousemove', e => {
+    if (!_cropDragging) return;
+    const p=pt(e); _cropX+=p.x-_cropLast.x; _cropY+=p.y-_cropLast.y; _cropLast=p; drawCrop(); e.preventDefault();
+  });
+  fresh.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      // Pinch zoom
+      const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      const wrap2 = document.getElementById('crop-wrap');
+      const size = wrap2.getBoundingClientRect().width || 300;
+      const ratio = d / _cropPinchDist;
+      const cx = size/2, cy = size/2;
+      _cropX = cx - (cx - _cropX) * ratio;
+      _cropY = cy - (cy - _cropY) * ratio;
+      _cropScale *= ratio;
+      _cropPinchDist = d;
+      const zEl = document.getElementById('crop-zoom-range');
+      if (zEl) zEl.value = _cropScale;
+      drawCrop();
+    } else if (_cropDragging) {
+      const p=pt(e); _cropX+=p.x-_cropLast.x; _cropY+=p.y-_cropLast.y; _cropLast=p; drawCrop();
+    }
+    e.preventDefault();
+  }, {passive:false});
+
+  fresh.addEventListener('mouseup',  () => { _cropDragging=false; });
+  fresh.addEventListener('touchend', () => { _cropDragging=false; _cropPinchDist=0; });
 }
 
 function cropSetZoom(val) {
   const wrap = document.getElementById('crop-wrap');
-  const size = (wrap?.clientWidth) || 280;
-  const cx = size / 2, cy = size / 2;
-  const ratio = parseFloat(val) / _cropScale;
-  _cropScale = parseFloat(val);
-  _cropX = cx - (cx - _cropX) * ratio;
-  _cropY = cy - (cy - _cropY) * ratio;
+  const size = wrap ? (wrap.getBoundingClientRect().width || 300) : 300;
+  const cx=size/2, cy=size/2, ratio=parseFloat(val)/_cropScale;
+  _cropScale=parseFloat(val);
+  _cropX=cx-(cx-_cropX)*ratio; _cropY=cy-(cy-_cropY)*ratio;
   drawCrop();
 }
 
 function cropCancel() {
-  document.getElementById('crop-modal').style.display = 'none';
-  _cropImg = null;
+  document.getElementById('crop-modal').style.display='none';
+  _cropImg=null;
 }
 
 async function cropConfirm() {
   if (!_cropImg || !portalMember) return;
   const btn = document.getElementById('crop-confirm-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando...'; }
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Enviando...'; }
 
   try {
     const wrap = document.getElementById('crop-wrap');
-    const displaySize = wrap.clientWidth || 280;
-
-    // Render crop to square output canvas
+    const size = wrap.getBoundingClientRect().width || 300;
     const out = document.createElement('canvas');
     out.width = CROP_OUT; out.height = CROP_OUT;
+    const sc = CROP_OUT / size;
     const ctx = out.getContext('2d');
-    // Convert display coords to image source coords
-    const sc = CROP_OUT / displaySize;
-    ctx.drawImage(_cropImg,
-      _cropX * sc, _cropY * sc,
-      _cropImg.width * _cropScale * sc,
-      _cropImg.height * _cropScale * sc);
-
+    ctx.drawImage(_cropImg, _cropX*sc, _cropY*sc, _cropImg.width*_cropScale*sc, _cropImg.height*_cropScale*sc);
     const base64 = out.toDataURL('image/jpeg', 0.88);
 
-    // Upload to Supabase Storage
     toast('⏳ Enviando foto...', 'info');
+
+    // Upload to Storage
     const url = await uploadFotoToStorage(base64, portalMember.id);
-    if (!url) throw new Error('Falha no upload');
+    if (!url) throw new Error('Upload falhou');
 
-    // Update Supabase column
-    await sbFetch('PATCH', 'members', {foto: url}, 'id=eq.' + portalMember.id);
+    // Save URL to Supabase
+    await sbFetch('PATCH','members',{foto:url},'id=eq.'+portalMember.id);
 
-    // Update local state
+    // Update all local state immediately
     portalMember.foto = url;
     setFotoCache(portalMember.id, url);
     const db = getDB();
-    const mi = db.members.findIndex(x => x.id === portalMember.id);
-    if (mi >= 0) { db.members[mi].foto = url; saveDB(db); }
+    const mi = db.members.findIndex(x=>x.id===portalMember.id);
+    if (mi>=0) { db.members[mi].foto=url; saveDB(db); }
 
-    // Update header photo
-    const photoWrap = document.getElementById('portal-member-photo-wrap');
-    if (photoWrap) photoWrap.innerHTML =
-      `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--orange);display:block;margin:0 auto">`;
+    // Update header avatar instantly
+    const pw = document.getElementById('portal-member-photo-wrap');
+    if (pw) pw.innerHTML = `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--orange);display:block;margin:0 auto">`;
 
-    document.getElementById('crop-modal').style.display = 'none';
-    _cropImg = null;
+    // Close modal and refresh card
+    document.getElementById('crop-modal').style.display='none';
+    _cropImg=null;
     renderPortalCard();
-    toast('✅ Foto atualizada com sucesso!', 'success');
+    toast('✅ Foto atualizada!', 'success');
+
   } catch(err) {
     console.error('cropConfirm:', err);
-    toast('Erro: ' + err.message, 'error');
+    toast('Erro: '+err.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar'; }
+    if (btn) { btn.disabled=false; btn.textContent='✅ Confirmar'; }
   }
 }
 
