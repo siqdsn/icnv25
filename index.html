@@ -683,6 +683,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
     <!-- ═══ MEMBERS ════════════════════════════════════ -->
     <div class="page" id="page-members">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="repairFotos()" title="Migrar fotos antigas para Supabase Storage" style="font-size:12px;color:var(--gray)">🔧 Reparar Fotos</button>
         <div class="search-bar"><span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><input type="text" id="member-search" placeholder="Buscar membro..." oninput="filterMembers()"></div>
       </div>
       <div class="card"><div class="table-wrap"><table><thead><tr><th>Membro</th><th>Contato</th><th>Estado Civil</th><th>Batismo</th><th>Batizou por</th><th style="text-align:center">Ações</th></tr></thead><tbody id="members-tbody"></tbody></table></div></div>
@@ -1649,9 +1650,9 @@ const DB = {
         // Update sig pending list (shows member avatars)
         if (currentPage === 'members' && typeof updateSigBadge === 'function') updateSigBadge();
       }
-      // Even if nothing changed in cache, update UI with whatever is in _fotoStore
+      // Always update UI — user may navigate to members after fotos load
       if (rows && rows.length) {
-        if (currentPage === 'members') renderMembers();
+        if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
         if (typeof renderPortalCard === 'function' && portalMember) renderPortalCard();
       }
     } catch(e) { console.warn('Fotos - erro ao buscar:', e.message); }
@@ -1998,6 +1999,35 @@ function renderMusiciansAdmin() {
     </div>`).join('');
 }
 
+
+// ─── REPARAR FOTOS: migra base64 do banco para Supabase Storage ──────────────
+async function repairFotos() {
+  const btn = event?.target;
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Reparando...'; }
+  try {
+    // Fetch all members with base64 fotos
+    const rows = await sbFetch('GET','members',null,'select=id,nome,foto&order=created_at.desc');
+    let fixed=0, skipped=0, failed=0;
+    for (const r of rows||[]) {
+      if (!r.foto) { skipped++; continue; }
+      if (!r.foto.startsWith('data:')) { skipped++; continue; } // already URL
+      // Upload to Storage
+      try {
+        const url = await uploadFotoToStorage(r.foto, r.id);
+        if (url && !url.startsWith('data:')) {
+          // Update member record with URL
+          await sbFetch('PATCH','members',{foto: url},'id=eq.'+r.id);
+          setFotoCache(r.id, url);
+          fixed++;
+        } else { failed++; }
+      } catch(e) { console.warn('repair foto', r.nome, e.message); failed++; }
+    }
+    toast(`✅ ${fixed} foto(s) migradas para Storage. ${failed} erro(s). ${skipped} já ok.`, 'success');
+    await DB.fetchAllFotos();
+    if (currentPage==='members') renderMembers();
+  } catch(e) { toast('Erro: '+e.message,'error'); }
+  finally { if(btn){btn.disabled=false;btn.textContent='🔧 Reparar Fotos';} }
+}
 function renderPage(n){
   if(n==='dashboard')renderDashboard();
   else if(n==='members'){ renderMembers(); updateSigBadge(); }
@@ -2600,8 +2630,9 @@ async function loginSuccess(username, user) {
   try { await DB.syncCacheEvents();  } catch(e) { console.warn('events:', e.message);  }
   try { await DB.syncCachePrayers(); } catch(e) { console.warn('prayers:', e.message); }
   try { await DB.syncCacheScales();  } catch(e) { console.warn('scales:', e.message);  }
-  // Photos come directly from syncCacheMembers now
   hideLoadingOverlay();
+  // Fetch fotos synchronously so they're ready when admin opens Members page
+  try { await DB.fetchAllFotos(); } catch(e) { console.warn('fotos:', e.message); }
   renderPage('dashboard');
   updateBadges();
   updateSigBadge();
