@@ -442,7 +442,13 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 .portal-tab{padding:12px 18px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--gray);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
 .portal-tab.active{color:var(--orange);border-bottom-color:var(--orange)}
 .portal-content{max-width:760px;margin:0 auto;padding:24px 20px}
+#portal-card-status,#portal-card-display{display:flex;flex-direction:column;align-items:center;width:100%}
+#portal-card-status > *,#portal-card-display > *{width:100%;max-width:440px}
+.card-download-btn{max-width:440px!important;margin-left:auto!important;margin-right:auto!important}
+#portal-foto-btn-wrap{margin-left:auto;margin-right:auto}
 .portal-section{display:none}
+.portal-tab-carteirinha-wrap{display:flex;flex-direction:column;align-items:center;width:100%}
+.portal-tab-carteirinha-wrap > *{width:100%;max-width:440px}
 .portal-section.active{display:block;animation:fadeIn .3s ease}
 
 /* ─── CARD DOWNLOAD ─── */
@@ -1388,10 +1394,11 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 
     <!-- CARTEIRINHA TAB -->
     <div class="portal-section active" id="portal-tab-carteirinha">
+      <div class="portal-tab-carteirinha-wrap">
       <div id="portal-card-status"></div>
       <div id="portal-card-display"></div>
       <!-- STATIC FOTO UPLOAD — always in DOM, shown/hidden by JS -->
-      <div id="portal-foto-btn-wrap" style="display:none;max-width:440px;width:100%;margin-top:8px">
+      <div id="portal-foto-btn-wrap" style="display:none;width:100%;margin-top:8px">
         <button id="portal-foto-btn-inner"
           onclick="document.getElementById('foto-input-body').click()"
           style="width:100%;padding:13px 16px;background:white;border:1.5px solid var(--orange);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--orange);cursor:pointer">
@@ -1417,6 +1424,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
             Enviar Pedido
           </button>
         </div>
+      </div><!-- /portal-tab-carteirinha-wrap -->
       </div>
       <div id="portal-my-prayers"></div>
     </div>
