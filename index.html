@@ -437,6 +437,17 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 .portal-user:hover{background:rgba(255,255,255,.08)}
 .portal-user-av{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid var(--orange)}
 .portal-user-av-init{width:30px;height:30px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white}
+.crop-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.crop-container{background:white;border-radius:20px;padding:24px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:16px}
+.crop-title{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;text-align:center}
+.crop-canvas-wrap{position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:12px;background:#111;cursor:move;user-select:none;touch-action:none}
+#crop-canvas{position:absolute;transform-origin:top left}
+.crop-overlay{position:absolute;inset:0;border:3px solid var(--orange);border-radius:12px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,.5)}
+.crop-actions{display:flex;gap:10px}
+.crop-actions button{flex:1;padding:12px;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+.crop-zoom{display:flex;align-items:center;gap:10px}
+.crop-zoom input{flex:1;accent-color:var(--orange)}
+.crop-zoom label{font-size:13px;color:var(--gray);white-space:nowrap}
 .portal-nav{display:flex;gap:0;padding:0;background:white;border-bottom:1px solid rgba(0,0,0,.06);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-behavior:smooth}
 .portal-tab{padding:12px 18px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--gray);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
 .portal-tab.active{color:var(--orange);border-bottom-color:var(--orange)}
@@ -2044,6 +2055,146 @@ async function repairFotos() {
   } catch(e) { toast('Erro: '+e.message,'error'); }
   finally { if(btn){btn.disabled=false;btn.textContent='🔧 Reparar Fotos';} }
 }
+
+// ─── CROP FOTO DO MEMBRO ─────────────────────────────────────
+let _cropImg = null, _cropScale = 1, _cropX = 0, _cropY = 0;
+let _cropDragging = false, _cropLastX = 0, _cropLastY = 0;
+const CROP_SIZE = 320; // output square size in px
+
+function openCropFoto() {
+  document.getElementById('portal-foto-input').click();
+}
+
+function onPortalFotoSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => initCrop(ev.target.result);
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function initCrop(src) {
+  const modal = document.getElementById('crop-modal');
+  const canvas = document.getElementById('crop-canvas');
+  const wrap = document.getElementById('crop-wrap');
+  modal.style.display = 'flex';
+  _cropImg = new Image();
+  _cropImg.onload = () => {
+    // Fit image to wrap size initially
+    const wrapW = wrap.clientWidth;
+    const ratio = Math.max(wrapW / _cropImg.width, wrapW / _cropImg.height);
+    _cropScale = ratio;
+    _cropX = (wrapW - _cropImg.width * ratio) / 2;
+    _cropY = (wrapW - _cropImg.height * ratio) / 2;
+    document.getElementById('crop-zoom').value = _cropScale;
+    document.getElementById('crop-zoom').min = ratio * 0.5;
+    document.getElementById('crop-zoom').max = ratio * 4;
+    document.getElementById('crop-zoom').step = ratio * 0.01;
+    drawCrop();
+  };
+  _cropImg.src = src;
+
+  // Mouse events
+  const cv = canvas;
+  wrap.onmousedown = wrap.ontouchstart = (ev) => {
+    _cropDragging = true;
+    const p = ev.touches ? ev.touches[0] : ev;
+    _cropLastX = p.clientX; _cropLastY = p.clientY;
+    ev.preventDefault();
+  };
+  window.onmousemove = window.ontouchmove = (ev) => {
+    if (!_cropDragging) return;
+    const p = ev.touches ? ev.touches[0] : ev;
+    _cropX += p.clientX - _cropLastX;
+    _cropY += p.clientY - _cropLastY;
+    _cropLastX = p.clientX; _cropLastY = p.clientY;
+    drawCrop(); ev.preventDefault();
+  };
+  window.onmouseup = window.ontouchend = () => { _cropDragging = false; };
+}
+
+function drawCrop() {
+  const wrap = document.getElementById('crop-wrap');
+  const canvas = document.getElementById('crop-canvas');
+  const size = wrap.clientWidth;
+  canvas.width = size; canvas.height = size;
+  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(_cropImg, _cropX, _cropY, _cropImg.width * _cropScale, _cropImg.height * _cropScale);
+}
+
+function cropSetZoom(val) {
+  const wrap = document.getElementById('crop-wrap');
+  const size = wrap.clientWidth;
+  const cx = size / 2, cy = size / 2;
+  // Zoom centered on wrap center
+  const oldScale = _cropScale;
+  _cropScale = parseFloat(val);
+  const ratio = _cropScale / oldScale;
+  _cropX = cx - (cx - _cropX) * ratio;
+  _cropY = cy - (cy - _cropY) * ratio;
+  drawCrop();
+}
+
+function cropCancel() {
+  document.getElementById('crop-modal').style.display = 'none';
+  _cropImg = null;
+}
+
+async function cropConfirm() {
+  if (!_cropImg || !portalMember) return;
+  const btn = document.querySelector('#crop-modal .crop-actions button:last-child');
+  btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+  // Render final square crop to output canvas
+  const out = document.createElement('canvas');
+  out.width = CROP_SIZE; out.height = CROP_SIZE;
+  const ctx = out.getContext('2d');
+  const wrap = document.getElementById('crop-wrap');
+  const displaySize = wrap.clientWidth;
+  const scale = CROP_SIZE / displaySize;
+  ctx.drawImage(_cropImg,
+    _cropX * scale, _cropY * scale,
+    _cropImg.width * _cropScale * scale,
+    _cropImg.height * _cropScale * scale
+  );
+
+  const base64 = out.toDataURL('image/jpeg', 0.85);
+
+  try {
+    // Upload to Supabase Storage
+    const url = await uploadFotoToStorage(base64, portalMember.id);
+    if (!url) throw new Error('Upload retornou vazio');
+
+    // Update Supabase
+    await sbFetch('PATCH', 'members', { foto: url }, 'id=eq.' + portalMember.id);
+
+    // Update local state
+    portalMember.foto = url;
+    setFotoCache(portalMember.id, url);
+    const db = getDB();
+    const mi = db.members.findIndex(x => x.id === portalMember.id);
+    if (mi >= 0) { db.members[mi].foto = url; saveDB(db); }
+
+    document.getElementById('crop-modal').style.display = 'none';
+    _cropImg = null;
+
+    // Update header avatar
+    const photoWrap = document.getElementById('portal-member-photo-wrap');
+    if (photoWrap) photoWrap.innerHTML = `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--orange);display:block;margin:0 auto">`;
+
+    // Re-render card
+    renderPortalCard();
+    toast('✅ Foto atualizada!', 'success');
+  } catch(e) {
+    console.error('cropConfirm:', e);
+    toast('Erro ao salvar foto: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Confirmar';
+  }
+}
 function renderPage(n){
   if(n==='dashboard')renderDashboard();
   else if(n==='members'){ renderMembers(); updateSigBadge(); }
@@ -3545,7 +3696,12 @@ async function renderPortalCard() {
     displayEl.innerHTML += `<button class="card-download-btn" disabled style="margin-top:16px;max-width:440px;display:flex;width:100%">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Aguardando assinatura...
-    </button>`;
+    </button>
+    <button onclick="openCropFoto()" style="max-width:440px;width:100%;margin-top:8px;padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Alterar Foto da Carteirinha
+    </button>
+    <input type="file" id="portal-foto-input" accept="image/*" style="display:none" onchange="onPortalFotoSelect(event)">`;
   } else {
     statusEl.innerHTML = `
       <div class="card-status-banner approved">
@@ -3564,10 +3720,16 @@ async function renderPortalCard() {
         new QRCode(qrEl, { text: 'ICNV:' + m.id, width:44, height:44, colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M });
       }
     }, 150);
-    displayEl.innerHTML += `<button class="card-download-btn" onclick="downloadCardPNG('${m.id}')" style="max-width:440px;display:flex;width:100%;margin-top:16px">
+    displayEl.innerHTML += `
+    <button class="card-download-btn" onclick="downloadCardPNG('${m.id}')" style="max-width:440px;display:flex;width:100%;margin-top:16px">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Baixar Carteirinha em PNG
-    </button>`;
+    </button>
+    <button onclick="openCropFoto()" style="max-width:440px;width:100%;margin-top:8px;padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Alterar Foto da Carteirinha
+    </button>
+    <input type="file" id="portal-foto-input" accept="image/*" style="display:none" onchange="onPortalFotoSelect(event)">`;
   }
 }
 
@@ -4351,7 +4513,28 @@ async function doExportCard(m, format) {
         <style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
         img{max-width:440px;width:100%;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
         @media print{body{background:#fff;padding:0}img{box-shadow:none;border-radius:0}}</style></head>
-        <body><img src="${imgData}" alt="Carteirinha ICNV"></body></html>`);
+        <body><img src="${imgData}" alt="Carteirinha ICNV">
+<!-- ═══ MODAL CROP FOTO ═══════════════════════════════════════ -->
+<div class="crop-modal-overlay" id="crop-modal" style="display:none">
+  <div class="crop-container">
+    <div class="crop-title">📸 Ajustar Foto</div>
+    <div class="crop-canvas-wrap" id="crop-wrap">
+      <canvas id="crop-canvas"></canvas>
+      <div class="crop-overlay"></div>
+    </div>
+    <div class="crop-zoom">
+      <label>🔍 Zoom</label>
+      <input type="range" id="crop-zoom" min="0.5" max="3" step="0.01" value="1" oninput="cropSetZoom(this.value)">
+    </div>
+    <div style="font-size:12px;color:var(--gray);text-align:center">Arraste para posicionar • Use o zoom para ajustar</div>
+    <div class="crop-actions">
+      <button onclick="cropCancel()" style="background:#f3f4f6;color:var(--dark)">Cancelar</button>
+      <button onclick="cropConfirm()" style="background:var(--orange);color:white">✅ Confirmar</button>
+    </div>
+  </div>
+</div>
+
+</body></html>`);
       w.document.close();
       setTimeout(() => { w.focus(); w.print(); }, 500);
       toast('✅ PDF pronto para salvar!', 'success');
