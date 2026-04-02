@@ -1547,15 +1547,20 @@ function getFotoCache(memberId) { return _fotoStore[memberId] || null; }
 function setFotoCache(memberId, foto) { if(foto) _fotoStore[memberId] = foto; }
 function setCache(db){
   try {
-    // Strip foto (large base64) before saving to localStorage to avoid quota
-    const toSave = {...db, members: (db.members||[]).map(m => {
-      const {foto, ...rest} = m; return rest;
-    })};
-    localStorage.setItem(DB_KEY, JSON.stringify(toSave));
+    // Save with foto — if quota exceeded, strip large base64 only (keep URLs)
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
   } catch(e) {
-    // If still quota exceeded, save without members
-    try { localStorage.setItem(DB_KEY, JSON.stringify({...db, members:[], registeredMembers:[]})); }
-    catch(e2) { console.warn('Cache indisponível:', e2.message); }
+    try {
+      // Strip base64 fotos only (keep URL fotos — they're small strings)
+      const toSave = {...db, members: (db.members||[]).map(m => {
+        if (m.foto && m.foto.startsWith('data:')) { const {foto,...rest}=m; return rest; }
+        return m;
+      })};
+      localStorage.setItem(DB_KEY, JSON.stringify(toSave));
+    } catch(e2) {
+      try { localStorage.setItem(DB_KEY, JSON.stringify({...db, members:[], registeredMembers:[]})); }
+      catch(e3) { console.warn('Cache indisponível:', e3.message); }
+    }
   }
 }
 
@@ -1598,12 +1603,22 @@ const DB = {
 
   // ── MEMBERS ──
   async getMembers() {
-    // Excludes foto — keeps payload small so mobile never times out
+    // Includes foto — uses AbortController timeout to handle slow connections
     try {
-      const cols = 'id,nome,nasc,tel,email,end_logradouro,civil,filhos,conj,fil,batismo,pr,outra,qual,login_user,login_pass,lgpd_consent,card_status,signature_data,signed_at,registered_at,created_at';
-      const data = await sbFetch('GET','members',null,'select='+cols+'&order=created_at.desc');
-      return data||[];
-    } catch(e) { console.error('Membros - erro ao buscar:', e.message); return getCache().members||[]; }
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20000);
+      const url = SUPA_URL + '/rest/v1/members?order=created_at.desc';
+      const res = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY, 'Accept': 'application/json' }
+      });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('members '+res.status);
+      return await res.json() || [];
+    } catch(e) {
+      console.error('Membros - erro ao buscar:', e.message);
+      return getCache().members || [];
+    }
   },
 
   // Fetch fotos in background after list loads — one batch request
@@ -1693,7 +1708,7 @@ const DB = {
       id:r.id, nome:r.nome, nasc:r.nasc, tel:r.tel, email:r.email,
       end:r.end_logradouro, civil:r.civil, filhos:r.filhos,
       conj:r.conj, fil:r.fil, batismo:r.batismo,
-      foto: cachedFotos[r.id] || null,
+      foto: r.foto || null,  // foto comes directly from Supabase now
       pr:r.pr, outra:r.outra, qual:r.qual,
       loginUser:r.login_user, loginPass:r.login_pass,
       lgpdConsent:r.lgpd_consent, cardStatus:r.card_status,
@@ -1702,8 +1717,6 @@ const DB = {
     }));
     cache.registeredMembers = cache.members.filter(m => m.loginUser);
     setCache(cache);
-    // Fetch fotos in background (small individual requests)
-    DB.fetchAllFotos();
   },
 
   // ── EVENTS ──
@@ -2587,8 +2600,7 @@ async function loginSuccess(username, user) {
   try { await DB.syncCacheEvents();  } catch(e) { console.warn('events:', e.message);  }
   try { await DB.syncCachePrayers(); } catch(e) { console.warn('prayers:', e.message); }
   try { await DB.syncCacheScales();  } catch(e) { console.warn('scales:', e.message);  }
-  // Fetch photos BEFORE rendering so cards show photos on first load
-  try { await DB.fetchAllFotos(); } catch(e) { console.warn('fotos:', e.message); }
+  // Photos come directly from syncCacheMembers now
   hideLoadingOverlay();
   renderPage('dashboard');
   updateBadges();
