@@ -1641,19 +1641,9 @@ const DB = {
           if (liveM) liveM.foto = r.foto;
         }
       });
-      if (changed) {
-        // Always update visible UI wherever photos are displayed
-        if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
-        // Update portal card
-        if (typeof renderPortalCard === 'function' && portalMember) renderPortalCard();
-        // Update sig pending list (shows member avatars)
-        if (currentPage === 'members' && typeof updateSigBadge === 'function') updateSigBadge();
-      }
-      // Always update UI — user may navigate to members after fotos load
-      if (rows && rows.length) {
-        if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
-        if (typeof renderPortalCard === 'function' && portalMember) renderPortalCard();
-      }
+      // Always update UI with whatever fotos were loaded
+      if (currentPage === 'members') { renderMembers(); updateSigBadge(); }
+      if (typeof renderPortalCard === 'function' && portalMember) renderPortalCard();
     } catch(e) { console.warn('Fotos - erro ao buscar:', e.message); }
   },
 
@@ -1675,7 +1665,7 @@ const DB = {
         id: m.id, nome: m.nome, nasc: m.nasc, tel: m.tel, email: m.email,
         end_logradouro: m.end||null, civil: m.civil||null, filhos: m.filhos||0,
         conj: m.conj||null, fil: m.fil||null, batismo: m.batismo||null,
-        foto: m.foto||null, pr: m.pr||null,
+        pr: m.pr||null,
         outra: m.outra||false, qual: m.qual||null,
         login_user: m.loginUser||null, login_pass: m.loginPass||null,
         lgpd_consent: m.lgpdConsent||false,
@@ -1684,6 +1674,8 @@ const DB = {
         signed_at: m.signedAt||null,
         registered_at: m.registeredAt||new Date().toISOString()
       };
+      // Only include foto if we have one — never overwrite with null
+      if (m.foto) row.foto = m.foto;
       await sbUpsert('members', row);
       await DB.syncCacheMembers();
     } catch(e) { console.error('Membro - erro ao salvar:', e.message); }
@@ -2123,6 +2115,9 @@ async function saveMember(){
   const id=document.getElementById('f-id').value||uid();
   // Preserve existing cardStatus if editing, default to pending_signature for new
   const existing = db.members.find(x=>x.id===id);
+  // Get foto: prioritize modal upload > fotoStore cache > Supabase fetch (never send null if had foto)
+  const modalFoto = document.getElementById('f-foto-data')?.value || null;
+  const cachedFoto = getFotoCache(id) || existing?.foto || null;
   const m={
     id, nome,
     nasc:document.getElementById('f-nasc').value,
@@ -2140,7 +2135,7 @@ async function saveMember(){
     contatoIg:document.getElementById('f-contato-ig').value,
     lgpdConsent:true,
     lgpdConsentDate:new Date().toISOString(),
-    foto: existing?.foto || null,
+    foto: modalFoto || cachedFoto,
     cardStatus: existing?.cardStatus || 'pending_signature',
     signatureData: existing?.signatureData || null,
     signedAt: existing?.signedAt || null,
