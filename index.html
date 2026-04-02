@@ -1031,7 +1031,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
         <div class="photo-preview" id="photo-preview-box" onclick="document.getElementById('f-foto-input').click()">
           <span class="upload-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
         </div>
-        <input type="file" id="f-foto-input" class="photo-input-hidden" accept="image/*" onchange="handlePhotoUpload(event)">
+        <input type="file" id="f-foto-input" class="photo-input-hidden" accept="image/png,image/jpeg,image/jpg,.png,.jpg,.jpeg" onchange="handlePhotoUpload(event)">
         <div class="photo-upload-info">
           <strong>Foto do membro</strong>
           Clique no círculo ou arraste uma foto.<br>
@@ -1298,7 +1298,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
           <div style="font-size:14px;font-weight:500;color:var(--dark)">Clique para escolher foto</div>
           <div style="font-size:12px;color:var(--gray)">JPG ou PNG · Máx. 5MB</div>
         </div>
-        <input type="file" id="r-foto-input" accept="image/*" style="display:none" onchange="handleRegPhoto(event)">
+        <input type="file" id="r-foto-input" accept="image/png,image/jpeg,image/jpg,.png,.jpg,.jpeg" style="display:none" onchange="handleRegPhoto(event)">
         <input type="hidden" id="r-foto-data">
       </div>
 
@@ -1392,14 +1392,11 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
       <div id="portal-card-display"></div>
       <!-- STATIC FOTO UPLOAD — always in DOM, shown/hidden by JS -->
       <div id="portal-foto-btn-wrap" style="display:none;max-width:440px;width:100%;margin-top:8px">
-        <div style="position:relative;width:100%">
-          <div id="portal-foto-btn-inner" style="padding:13px 16px;background:white;border:1.5px solid var(--orange);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--orange)">
-            📷 Alterar Foto da Carteirinha
-          </div>
-          <input type="file" accept="image/*" capture="user"
-            onchange="onPortalFotoSelect(event)"
-            style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">
-        </div>
+        <button id="portal-foto-btn-inner"
+          onclick="document.getElementById('foto-input-body').click()"
+          style="width:100%;padding:13px 16px;background:white;border:1.5px solid var(--orange);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--orange);cursor:pointer">
+          📷 Alterar Foto da Carteirinha
+        </button>
       </div>
     </div>
 
@@ -2063,7 +2060,8 @@ async function repairFotos() {
 function onPortalFotoSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
-  e.target.value = '';
+  // Clear input so same file can be selected again
+  setTimeout(() => { e.target.value = ''; }, 100);
 
   // Show loading state instantly
   const btn = document.getElementById('portal-foto-btn-inner');
@@ -2108,7 +2106,8 @@ async function processAndUploadFoto(src) {
     console.error('uploadFoto:', err);
     toast('Erro ao enviar foto: ' + err.message, 'error');
   } finally {
-    if (btn) { btn.textContent = '📷 Alterar Foto da Carteirinha'; btn.style.opacity = '1'; }
+    const b = document.getElementById('portal-foto-btn-inner');
+    if (b) { b.textContent = '📷 Alterar Foto da Carteirinha'; b.style.opacity = '1'; }
   }
 }
 
@@ -3367,7 +3366,7 @@ async function uploadFotoToStorage(base64DataUrl, memberId) {
   // Convert base64 to blob
   const [meta, data] = base64DataUrl.split(',');
   const mime = meta.match(/:(.*?);/)[1];
-  const ext = mime.includes('png') ? 'png' : 'jpg';
+  const ext = mime.includes('png') ? 'png' : (mime.includes('jpeg') || mime.includes('jpg')) ? 'jpg' : 'jpg';
   const bytes = atob(data);
   const arr = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
@@ -3874,7 +3873,7 @@ function renderSigPendingList(members) {
           </button>
           <label style="background:var(--orange);color:white;border:none;border-radius:10px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;font-family:inherit">
             📎 Anexar Assinatura PNG
-            <input type="file" accept="image/*" style="display:none" onchange="liberarComAssinatura('${m.id}',this)">
+            <input type="file" accept="image/png,image/jpeg,image/jpg,.png,.jpg,.jpeg" style="display:none" onchange="liberarComAssinatura('${m.id}',this)">
           </label>`}
       </div>
     </div>`;
@@ -4516,5 +4515,10 @@ function triggerSignatureUpload() {
 </div>
 
 
+
+<!-- INPUT FILE NO BODY — fora do position:fixed para funcionar no iOS PWA -->
+<input type="file" id="foto-input-body" accept="image/png,image/jpeg,image/jpg,.png,.jpg,.jpeg"
+  onchange="onPortalFotoSelect(event)"
+  style="position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px">
 </body>
 </html>
