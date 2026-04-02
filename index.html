@@ -2062,7 +2062,7 @@ let _cropDragging = false, _cropLast = {x:0,y:0};
 const CROP_OUT = 400; // output px
 
 function openCropFoto() {
-  // Use the static file input in the crop modal
+  // Fallback for desktop — on mobile the label handles it directly
   const inp = document.getElementById('portal-foto-input-static');
   if (inp) inp.click();
 }
@@ -3725,10 +3725,9 @@ async function renderPortalCard() {
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Aguardando assinatura...
     </button>
-    <button onclick="openCropFoto()" style="max-width:440px;width:100%;margin-top:8px;padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark)">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      Alterar Foto da Carteirinha
-    </button>
+    <label for="portal-foto-input-static" style="max-width:440px;width:100%;margin-top:8px;padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark);box-sizing:border-box">
+      📷 Alterar Foto da Carteirinha
+    </label>
     <input type="file" id="portal-foto-input" accept="image/*" style="display:none" onchange="onPortalFotoSelect(event)">`;
   } else {
     statusEl.innerHTML = `
@@ -3753,10 +3752,9 @@ async function renderPortalCard() {
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Baixar Carteirinha em PNG
     </button>
-    <button onclick="openCropFoto()" style="max-width:440px;width:100%;margin-top:8px;padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark)">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      Alterar Foto da Carteirinha
-    </button>`;
+    <label for="portal-foto-input-static" style="max-width:440px;width:100%;margin-top:8px;padding:12px;background:white;border:1.5px solid rgba(0,0,0,.12);border-radius:14px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--dark);box-sizing:border-box">
+      📷 Alterar Foto da Carteirinha
+    </label>`;
   }
 }
 
