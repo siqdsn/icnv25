@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0d0d0d">
   <link rel="icon" type="image/png" href="https://qshstgxxdgqfalekohih.supabase.co/storage/v1/object/public/site-assets/icon-favicon-32.png">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Igreja Cristã Nova Vida — Portal do Membro</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -212,6 +212,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
 .sidebar-overlay.open{display:block}
 @media(max-width:900px){
+  /* ── ADMIN ── */
   .sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}
   .main{margin-left:0}.hamburger{display:flex}
   .stat-grid{grid-template-columns:1fr 1fr}
@@ -229,8 +230,13 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
   .card{padding:16px}
   .sig-pending-card{flex-wrap:wrap;gap:10px}
   .sig-pending-card > div:last-child{width:100%;flex-direction:row;flex-wrap:wrap}
+  /* ── PORTAL ── */
+  .portal-content{padding:16px 12px}
+  .portal-header{padding:0 16px}
+  .portal-tab{padding:12px 10px;font-size:13px}
 }
 @media(max-width:600px){
+  /* ── ADMIN ── */
   .stat-grid{grid-template-columns:1fr}
   .birthday-grid{grid-template-columns:1fr 1fr}
   .content{padding:12px}
@@ -241,6 +247,24 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
   .modal-overlay{align-items:flex-end}
   .form-grid{gap:12px}
   .sig-pending-card button{font-size:12px;padding:7px 10px}
+  /* ── LOGIN ── */
+  .login-box{padding:28px 20px 32px;border-radius:16px}
+  .login-title{font-size:22px}
+  .login-sub{font-size:12px}
+  /* ── PORTAL ── */
+  .portal-content{padding:12px 10px}
+  .portal-header{padding:0 12px;height:52px}
+  .portal-header-name{font-size:13px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .portal-tab{padding:10px 8px;font-size:12px;gap:3px}
+  .portal-tab span{display:none}
+  #portal-card-status .card-status-banner{padding:12px 14px;gap:10px;font-size:13px}
+  .member-card{font-size:13px}
+  #portal-foto-btn-wrap button{font-size:13px;padding:11px 14px}
+}@media(max-width:390px){
+  .login-box{padding:24px 16px 28px}
+  .portal-tab{padding:8px 6px;font-size:11px}
+  .portal-content{padding:10px 8px}
+  .portal-header{padding:0 10px}
 }
 
 /* ─── MÚSICOS / ESCALA ─── */
@@ -372,7 +396,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 
 /* ─── LOGIN SCREEN ─── */
 #login-screen{position:fixed;inset:0;background:var(--black);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
-.login-box{background:#181818;border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:36px 40px 40px;width:100%;max-width:400px;text-align:center}
+.login-box{background:#181818;border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:36px 40px 40px;width:100%;max-width:400px;text-align:center;box-sizing:border-box}
 .login-logo{margin-bottom:24px}
 .login-title{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:white;margin-bottom:6px}
 .login-sub{font-size:14px;color:rgba(255,255,255,.4);margin-bottom:32px}
@@ -428,7 +452,7 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 .reg-progress-fill{height:100%;background:linear-gradient(90deg,var(--orange),#fbbf24);border-radius:2px;transition:width .4s ease}
 
 /* ─── MEMBER PORTAL ─── */
-#member-portal{display:none;position:fixed;inset:0;background:var(--light);z-index:9997;overflow-y:auto}
+#member-portal{display:none;position:fixed;inset:0;background:var(--light);z-index:9997;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom)}
 .portal-header{background:var(--black);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
 .portal-brand{display:flex;align-items:center;gap:10px}
 .portal-brand img{width:32px;height:auto;filter:drop-shadow(0 2px 6px rgba(242,142,67,.4))}
@@ -438,8 +462,8 @@ tbody td{padding:14px 16px;color:var(--dark);vertical-align:middle}
 .portal-user-av{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid var(--orange)}
 .portal-user-av-init{width:30px;height:30px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white}
 
-.portal-nav{display:flex;gap:0;padding:0;background:white;border-bottom:1px solid rgba(0,0,0,.06);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-behavior:smooth}
-.portal-tab{padding:12px 18px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--gray);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
+.portal-nav{display:flex;gap:0;padding:0;background:white;border-bottom:1px solid rgba(0,0,0,.06);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-behavior:smooth;-ms-overflow-style:none}
+.portal-tab{flex-shrink:0;padding:12px 18px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--gray);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;white-space:nowrap;flex-shrink:0}
 .portal-tab.active{color:var(--orange);border-bottom-color:var(--orange)}
 .portal-content{max-width:760px;margin:0 auto;padding:24px 20px}
 #portal-card-status,#portal-card-display{display:flex;flex-direction:column;align-items:center;width:100%}
@@ -2151,19 +2175,6 @@ function updatePortalAvatar(foto) {
   if (pw && foto) pw.innerHTML =
     `<img src="${foto}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--orange);display:block;margin:0 auto">`;
 }
-
-function renderPage(n){
-  if(n==='dashboard')renderDashboard();
-  else if(n==='members'){ renderMembers(); updateSigBadge(); }
-  else if(n==='birthdays')renderBirthdays();
-  else if(n==='prayers')renderPrayers();
-  else if(n==='events')renderEvents();
-  else if(n==='musicos')renderMusicos();
-  else if(n==='musicos-cad'){ loadMusicians().then(renderMusiciansAdmin); }
-  else if(n==='leitura')loadAdminLeitura();
-  else if(n==='lgpd')updateLGPDInfo();
-  updateBadges();
-}
 function updateBadges(){
   const db=getDB();
   document.getElementById('badge-members').textContent=db.members.length;
@@ -2194,101 +2205,10 @@ function renderDashboard(){
 }
 
 // ─── MEMBERS ──────────────────────────────────────────────────────────────────
-function renderMembers(q=''){
-  const db=getDB();
-  const s=(q||document.getElementById('member-search')?.value||'').toLowerCase();
-  const list=db.members.filter(m=>m.nome.toLowerCase().includes(s)||m.email.toLowerCase().includes(s));
-  const tbody=document.getElementById('members-tbody');
-  tbody.innerHTML=list.length?list.map(m=>`<tr><td><div class="td-member"><div class="avatar" style="background:${avatarColor(m.nome)};overflow:hidden;padding:0">${(m.foto||getFotoCache(m.id))?`<img src="${m.foto||getFotoCache(m.id)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:initials(m.nome)}</div><div><div class="td-name">${m.nome}</div><div class="td-meta">Nasc: ${fmtDate(m.nasc)} · ${getAge(m.nasc)} anos${m.lgpdConsent?' · <span style="color:#16a34a;font-size:11px">✓ LGPD</span>':''}</div></div></div></td><td><div style="font-size:14px">${m.tel||'—'}</div><div class="td-meta">${m.email||'—'}</div></td><td><span class="badge badge-gray">${m.civil||'—'}</span></td><td>${fmtDate(m.batismo)}</td><td style="font-size:13px">${m.pr||'—'}</td><td><div style="display:flex;gap:6px;justify-content:center"><button class="btn btn-ghost btn-sm btn-icon" title="Ver" onclick='viewMember("${m.id}")'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="btn btn-ghost btn-sm btn-icon" title="Editar" onclick='editMember("${m.id}")'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick='deleteMember("${m.id}")'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/></svg></button></div></td></tr>`).join(''):'<tr><td colspan="6" style="text-align:center;padding:40px;color:#999">Nenhum membro encontrado</td></tr>';
-}
 function filterMembers(){renderMembers()}
-function openMemberModal(m=null){
-  ['nome','nasc','end','tel','email','fil','conj','pr','qual'].forEach(f=>{const el=document.getElementById('f-'+f);if(el)el.value=m?(m[f]||''):''});
-  document.getElementById('f-id').value=m?m.id:'';
-  document.getElementById('f-filhos').value=m?(m.filhos||0):0;
-  document.getElementById('f-batismo').value=m?(m.batismo||''):'';
-  document.getElementById('f-contato-ig').value=m?(m.contatoIg||''):'';
-  document.getElementById('f-civil').value=m?(m.civil||'Solteiro(a)'):'Solteiro(a)';
-  document.getElementById('f-outra').checked=m?!!m.outra:false;
-  document.getElementById('f-lgpd-consent').checked=m?!!m.lgpdConsent:false;
-  toggleOutraIgreja();
-  document.getElementById('member-modal-title').textContent=m?'Editar Membro':'Cadastrar Novo Membro';
-  openModal('modal-member');
-}
-async function saveMember(){
-  const nome=document.getElementById('f-nome').value.trim();
-  if(!nome){toast('Nome obrigatório!','error');return}
-  if(!document.getElementById('f-lgpd-consent').checked){toast('É necessário confirmar o consentimento LGPD!','error');return}
-  const db=getDB();
-  const id=document.getElementById('f-id').value||uid();
-  // Preserve existing cardStatus if editing, default to pending_signature for new
-  const existing = db.members.find(x=>x.id===id);
-  // Get foto: prioritize modal upload > fotoStore cache > Supabase fetch (never send null if had foto)
-  const modalFoto = document.getElementById('f-foto-data')?.value || null;
-  const cachedFoto = getFotoCache(id) || existing?.foto || null;
-  const m={
-    id, nome,
-    nasc:document.getElementById('f-nasc').value,
-    end:document.getElementById('f-end').value,
-    tel:document.getElementById('f-tel').value,
-    email:document.getElementById('f-email').value,
-    fil:document.getElementById('f-fil').value,
-    civil:document.getElementById('f-civil').value,
-    conj:document.getElementById('f-conj').value,
-    filhos:parseInt(document.getElementById('f-filhos').value)||0,
-    batismo:document.getElementById('f-batismo').value,
-    pr:document.getElementById('f-pr').value,
-    outra:document.getElementById('f-outra').checked,
-    qual:document.getElementById('f-qual').value,
-    contatoIg:document.getElementById('f-contato-ig').value,
-    lgpdConsent:true,
-    lgpdConsentDate:new Date().toISOString(),
-    foto: modalFoto || cachedFoto,
-    cardStatus: existing?.cardStatus || 'pending_signature',
-    signatureData: existing?.signatureData || null,
-    signedAt: existing?.signedAt || null,
-    registeredAt: existing?.registeredAt || new Date().toISOString(),
-  };
-  const idx=db.members.findIndex(x=>x.id===id);
-  if(idx>=0)db.members[idx]=m; else db.members.push(m);
-  saveDB(db);
-  closeModal('modal-member');
-  // Upload foto to Storage if base64, then save
-  (async () => {
-    if (m.foto && m.foto.startsWith('data:')) {
-      try { m.foto = await uploadFotoToStorage(m.foto, m.id); } catch(e) { console.warn('foto upload:', e.message); }
-    }
-    await DB.upsertMember(m);
-    renderMembers(); updateBadges(); updateSigBadge();
-  })();
-  renderMembers(); updateBadges(); updateSigBadge();
-  toast(idx>=0?'Membro atualizado!':'Membro cadastrado!','success');
-}
 function editMember(id){const db=getDB();const m=db.members.find(x=>x.id===id);if(m)openMemberModal(m)}
 function deleteMember(id){if(!confirm('Excluir membro?'))return;const db=getDB();db.members=db.members.filter(x=>x.id!==id);saveDB(db);DB.deleteMember(id);renderMembers();updateBadges();toast('Membro excluído.','info')}
-function viewMember(id){
-  const db=getDB();const m=db.members.find(x=>x.id===id);if(!m)return;
-  const body=document.getElementById('detail-body');
-  body.innerHTML=`<div class="member-card-container" style="margin-bottom:24px"><div class="member-card"><div class="card-church-logo"><div class="card-cross" style="background:transparent;padding:0"><img src="https://qshstgxxdgqfalekohih.supabase.co/storage/v1/object/public/site-assets/logo-icnv.png" style="width:32px;height:auto;filter:brightness(10)"></div><div><div class="card-church-name">Igreja Cristã Nova Vida</div><div class="card-church-sub">Cartão de Membro</div></div></div><div class="card-avatar-row"><div class="card-avatar" style="background:${avatarColor(m.nome)};overflow:hidden;padding:0">${(m.foto||getFotoCache(m.id))?`<img src="${m.foto||getFotoCache(m.id)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:initials(m.nome)}</div><div><div class="card-member-name">${m.nome}</div><div class="card-member-id">Membro Nº ${m.id}</div></div></div><div class="card-details"><div class="card-detail-item"><div class="label">Nascimento</div><div class="value">${fmtDate(m.nasc)}</div></div><div class="card-detail-item"><div class="label">Batismo</div><div class="value">${fmtDate(m.batismo)||'—'}</div></div><div class="card-detail-item"><div class="label">Estado Civil</div><div class="value">${m.civil||'—'}</div></div><div class="card-detail-item"><div class="label">Telefone</div><div class="value">${m.tel||'—'}</div></div></div><div class="card-footer"><div class="card-pastor">Pastor que Batizou<strong>Pr. Antonio Carlos</strong></div><div class="card-valid">Válido<br>${new Date().getFullYear()}</div></div></div></div>
-  <div class="section-title" style="margin-bottom:14px">Informações Completas</div>
-  <div class="detail-grid">
-    <div class="detail-item"><div class="d-label">Nome Completo</div><div class="d-value">${m.nome}</div></div>
-    <div class="detail-item"><div class="d-label">Nascimento</div><div class="d-value">${fmtDate(m.nasc)} (${getAge(m.nasc)} anos)</div></div>
-    <div class="detail-item"><div class="d-label">Telefone</div><div class="d-value">${m.tel||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">E-mail</div><div class="d-value">${m.email||'—'}</div></div>
-    <div class="detail-item" style="grid-column:1/-1"><div class="d-label">Endereço</div><div class="d-value">${m.end||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">Estado Civil</div><div class="d-value">${m.civil||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">Cônjuge</div><div class="d-value">${m.conj||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">Filhos</div><div class="d-value">${m.filhos||0}</div></div>
-    <div class="detail-item"><div class="d-label">Batismo</div><div class="d-value">${fmtDate(m.batismo)||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">Batizou por</div><div class="d-value">${m.pr||'—'}</div></div>
-    <div class="detail-item"><div class="d-label">Consentimento LGPD</div><div class="d-value" style="color:${m.lgpdConsent?'#16a34a':'#dc2626'}">${m.lgpdConsent?'✓ Consentido':'✗ Pendente'}</div></div>
-    ${m.outra?`<div class="detail-item"><div class="d-label">Igreja Anterior</div><div class="d-value">${m.qual||'—'}</div></div>`:'' }
-  </div>`;
-  openModal('modal-detail');
-}
 function toggleOutraIgreja(){const s=document.getElementById('f-outra').checked;document.getElementById('field-qual').style.display=s?'':'none';document.getElementById('field-contato').style.display=s?'':'none'}
-function printCard(){const body=document.getElementById('detail-body');const card=body.querySelector('.member-card-container');if(!card)return;const pa=document.getElementById('print-area');pa.style.display='block';pa.innerHTML=`<style>body{margin:0;padding:20px;font-family:sans-serif} .member-card-container{max-width:400px;margin:0 auto} ${document.querySelector('style').textContent}</style>`+card.outerHTML;window.print();pa.style.display='none';pa.innerHTML=''}
 
 // ─── BIRTHDAYS ────────────────────────────────────────────────────────────────
 function renderBirthdays(){
@@ -2405,43 +2325,6 @@ function editEvent(id){const db=getDB();const e=db.events.find(x=>x.id===id);if(
 function deleteEvent(id){if(!confirm('Excluir evento?'))return;const db=getDB();db.events=db.events.filter(e=>e.id!==id);saveDB(db);DB.deleteEvent(id);renderEvents();renderDashboard();toast('Evento excluído.','info')}
 
 // ─── MÚSICOS / ESCALA ─────────────────────────────────────────────────────────
-function renderMusicos(){
-  const db=getDB();
-  // update share link
-  const link=window.location.href.split('?')[0]+'?view=musicos&token=nova-vida-2026';
-  const input=document.getElementById('share-link-input');
-  if(input)input.value=link;
-
-  const el=document.getElementById('scales-list');
-  if(!db.scales||!db.scales.length){el.innerHTML='<div class="empty-state"><p>Nenhuma escala cadastrada ainda</p></div>';return}
-  const _today=new Date().toISOString().split('T')[0];
-  const sorted=[...db.scales].filter(s=>s.data>=_today).sort((a,b)=>a.data.localeCompare(b.data));
-  if(!sorted.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray)">Nenhum culto futuro agendado no momento</div>';return}
-  el.innerHTML=sorted.map(s=>{
-    const confirmSummary=s.musicians.reduce((acc,m)=>{acc[m.confirmado]=(acc[m.confirmado]||0)+1;return acc},{});
-    return`<div style="background:white;border-radius:var(--radius-lg);border:1px solid rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px">
-      <div style="padding:18px 22px;background:var(--light);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.05)">
-        <div>
-          <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700">🎵 ${s.titulo}</div>
-          <div style="font-size:13px;color:var(--gray);margin-top:3px">📅 ${fmtDate(s.data)} · ⏰ ${s.hora||'—'} ${s.tema?'· '+s.tema:''}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-size:12px;color:#16a34a;background:#dcfce7;padding:3px 10px;border-radius:20px">${confirmSummary['sim']||0} confirmado(s)</span>
-          <span style="font-size:12px;color:#ca8a04;background:#fef9c3;padding:3px 10px;border-radius:20px">${confirmSummary['aguardando']||0} aguardando</span>
-          <button class="btn btn-ghost btn-sm" onclick="editScale('${s.id}')">Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteScale('${s.id}')">Excluir</button>
-        </div>
-      </div>
-      <div style="padding:8px 0">
-        ${s.musicians.map(m=>{
-          const cc=m.confirmado==='sim'?'confirm-yes':m.confirmado==='nao'?'confirm-no':'confirm-wait';
-          const cl=m.confirmado==='sim'?'Confirmado':m.confirmado==='nao'?'Recusado':'Aguardando';
-          return`<div class="musician-row"><div class="instrument-icon" style="background:var(--orange-subtle)">${INST_EMOJI[m.instrumento]||'🎵'}</div><div><div class="musician-name">${m.nome}</div><div style="font-size:12px;color:var(--gray)">${m.instrumento}</div></div><span class="musician-confirm ${cc}">${cl}</span></div>`
-        }).join('')}
-      </div>
-    </div>`;
-  }).join('');
-}
 
 function openScaleModal(scale=null){
   document.getElementById('sc-id').value=scale?scale.id:'';
@@ -2633,7 +2516,12 @@ async function confirmMusician(scaleId,musIdx,status){
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').classList.toggle('open')}
+function toggleSidebar(){
+  const s = document.querySelector('.sidebar');
+  const o = document.getElementById('overlay');
+  s.classList.toggle('open');
+  if(o) o.classList.toggle('active', s.classList.contains('open'));
+}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open')}
 
 // ─── CLOSE ON OVERLAY CLICK ───────────────────────────────────────────────────
@@ -2753,9 +2641,15 @@ async function doLogin() {
 
     // ── 2) Member login — tabela 'members' no Supabase ───────────
     try {
-      const rows = await sbSelect('members',
-        'login_user=eq.'+encodeURIComponent(input)+'&limit=1');
-      const data = rows && rows[0];
+      const _mc = new AbortController();
+      const _mt = setTimeout(() => _mc.abort(), 10000);
+      const _mr = await fetch(SUPA_URL+'/rest/v1/members?login_user=eq.'+encodeURIComponent(input)+'&limit=1&select=*', {
+        signal: _mc.signal,
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY, 'Accept': 'application/json' }
+      });
+      clearTimeout(_mt);
+      const rows = _mr.ok ? await _mr.json() : [];
+      const data = rows && rows[0];  // rows from fetch above
       if (data && data.login_pass === pass) {
         const member = {
           id: data.id, nome: data.nome, nasc: data.nasc,
@@ -3039,13 +2933,15 @@ function openMemberModal(m = null) {
 }
 
 // Override saveMember to include foto
-function saveMember() {
+async function saveMember() {
   const nome = document.getElementById('f-nome').value.trim();
   if (!nome) { toast('Nome obrigatório!','error'); return; }
   if (!document.getElementById('f-lgpd-consent').checked) { toast('É necessário confirmar o consentimento LGPD!','error'); return; }
   const db = getDB();
   const id = document.getElementById('f-id').value || uid();
-  const foto = document.getElementById('f-foto-data').value || '';
+  // Get foto: from modal field first, then memory cache, never null
+  const modalFoto = document.getElementById('f-foto-data').value || '';
+  const foto = modalFoto || getFotoCache(id) || '';
   const m = {
     id, nome,
     foto,
@@ -3068,12 +2964,19 @@ function saveMember() {
   const idx = db.members.findIndex(x => x.id === id);
   if (idx >= 0) db.members[idx] = m; else db.members.push(m);
   saveDB(db);
+  // Upload foto nova se base64
+  if (m.foto && m.foto.startsWith('data:')) {
+    try { m.foto = await uploadFotoToStorage(m.foto, m.id); } catch(e) { console.warn('foto upload:', e.message); }
+  }
   // Persist to Supabase
-  DB.upsertMember(m).then(() => { renderMembers(); updateBadges(); });
+  try {
+    await DB.upsertMember(m);
+    renderMembers(); updateBadges(); updateSigBadge();
+    toast(idx >= 0 ? 'Membro atualizado!' : 'Membro cadastrado!','success');
+  } catch(e) {
+    toast('Erro ao salvar: ' + e.message, 'error');
+  }
   closeModal('modal-member');
-  renderMembers();
-  updateBadges();
-  toast(idx >= 0 ? 'Membro atualizado!' : 'Membro cadastrado!','success');
 }
 
 // Override renderMembers to show photo
@@ -3404,10 +3307,24 @@ async function submitRegistration() {
   saveDB(db);
   // Upload foto to Storage before persisting
   if (member.foto && member.foto.startsWith('data:')) {
-    try { member.foto = await uploadFotoToStorage(member.foto, member.id); } catch(e) { console.warn('foto upload:', e.message); }
+    try {
+      const url = await uploadFotoToStorage(member.foto, member.id);
+      member.foto = url; // may be URL or base64 fallback — both work
+    } catch(e) {
+      console.warn('foto upload:', e.message);
+      // Keep base64 as fallback — will be in members.foto column
+    }
   }
-  // Persist to Supabase
-  DB.upsertMember(member);
+  // Persist to Supabase — await to catch errors
+  try {
+    await DB.upsertMember(member);
+  } catch(e) {
+    console.error('upsertMember:', e.message);
+    toast('Erro ao salvar cadastro. Tente novamente.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = 'Concluir Cadastro';
+    return;
+  }
   regMemberData = member;
 
   // Show success
